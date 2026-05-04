@@ -113,6 +113,8 @@ export async function POST(req: NextRequest) {
   // In production: https://full-agency.vercel.app/api/blob?url=...
   // In dev: KIE can't reach localhost, so use URL as-is (will fail but dev only)
   function toPublicUrl(url: string): string {
+    // Only proxy private Vercel Blob URLs — pass everything else (Unsplash, etc.) directly
+    if (!url.includes("blob.vercel-storage.com")) return url;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ??
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
     if (appUrl) {
