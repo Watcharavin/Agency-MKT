@@ -92,7 +92,7 @@ export default async function SuperAffPage() {
                   {/* Top row: VOUCHER | COLLECTION — each cell is a perfect square */}
                   <div className="grid grid-cols-2">
                     {/* Voucher cover */}
-                    <div className="relative aspect-square overflow-hidden border-r border-border/60">
+                    <div className="relative overflow-hidden border-r border-border/60" style={{ height: 140 }}>
                       {v.coverImageUrl ? (
                         <img src={v.coverImageUrl} alt="cover" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
@@ -102,7 +102,7 @@ export default async function SuperAffPage() {
                       )}
                     </div>
                     {/* Collection merged */}
-                    <div className="relative aspect-square overflow-hidden">
+                    <div className="relative overflow-hidden" style={{ height: 140 }}>
                       {v.mergedImageUrl ? (
                         <img src={v.mergedImageUrl} alt="collection" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
@@ -116,7 +116,7 @@ export default async function SuperAffPage() {
                   {/* Bottom row: first coupon | count — each cell is a perfect square */}
                   <div className="grid grid-cols-2 border-t border-border/60">
                     {/* First coupon thumbnail */}
-                    <div className="relative aspect-square overflow-hidden border-r border-border/60">
+                    <div className="relative overflow-hidden border-r border-border/60" style={{ height: 100 }}>
                       {firstImageUrl ? (
                         <img src={firstImageUrl} alt="coupon 1" className="absolute inset-0 w-full h-full object-cover" />
                       ) : (
@@ -126,9 +126,9 @@ export default async function SuperAffPage() {
                       )}
                     </div>
                     {/* Remaining coupon count */}
-                    <div className="relative aspect-square flex flex-col items-center justify-between p-4" style={{ background: STRIPE }}>
+                    <div className="relative flex flex-col items-center justify-between p-3" style={{ height: 100, background: STRIPE }}>
                       <span className="text-sm font-mono text-zinc-400">+</span>
-                      <span className="text-4xl font-bold text-zinc-400/50 font-mono">{count}</span>
+                      <span className="text-2xl font-bold text-zinc-400/50 font-mono">{count}</span>
                     </div>
                   </div>
                 </Link>
