@@ -57,8 +57,13 @@ export default async function SuperAffPage() {
         <div className="grid grid-cols-3 gap-4">
           {vouchers.map((v) => (
             <div key={v.id} className="rounded-lg border border-border bg-card overflow-hidden">
-              {/* Placeholder image */}
-              <div className="h-36 w-full relative" style={{ background: "repeating-linear-gradient(45deg, #e8e3d8, #e8e3d8 12px, #f0ece4 12px, #f0ece4 24px)" }}>
+              {/* Cover image */}
+              <div className="h-36 w-full relative overflow-hidden">
+                {v.coverImageUrl ? (
+                  <img src={v.coverImageUrl} alt={v.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, #e8e3d8, #e8e3d8 12px, #f0ece4 12px, #f0ece4 24px)" }} />
+                )}
                 <span className="absolute top-2 right-2 rounded-full bg-card/80 px-2 py-0.5 text-[10px] font-mono text-foreground">
                   {v.status ?? "draft"}
                 </span>
