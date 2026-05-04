@@ -88,7 +88,7 @@ export default async function SuperAffPage() {
               <div key={v.id} className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
 
                 {/* ── Image grid (clickable) ─────────────────── */}
-                <Link href={`/vouchers/${v.id}/result`} className="block group">
+                <Link href={`/super-aff/${v.id}/view`} className="block group">
                   {/* Top row: VOUCHER | COLLECTION — each cell is a perfect square */}
                   <div className="grid grid-cols-2">
                     {/* Voucher cover */}
@@ -145,7 +145,7 @@ export default async function SuperAffPage() {
                   </p>
                   <div className="flex gap-2 pt-1">
                     <Link
-                      href={`/vouchers/${v.id}/result`}
+                      href={`/super-aff/${v.id}/view`}
                       className="rounded-md border border-border px-4 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
                     >
                       View
