@@ -89,46 +89,46 @@ export default async function SuperAffPage() {
 
                 {/* ── Image grid (clickable) ─────────────────── */}
                 <Link href={`/vouchers/${v.id}/result`} className="block group">
-                  {/* Top row: VOUCHER | COLLECTION */}
-                  <div className="grid grid-cols-2" style={{ height: 280 }}>
+                  {/* Top row: VOUCHER | COLLECTION — each cell is a perfect square */}
+                  <div className="grid grid-cols-2">
                     {/* Voucher cover */}
-                    <div className="relative overflow-hidden border-r border-border/60">
+                    <div className="relative aspect-square overflow-hidden border-r border-border/60">
                       {v.coverImageUrl ? (
-                        <img src={v.coverImageUrl} alt="cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <img src={v.coverImageUrl} alt="cover" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON }}>
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: SALMON }}>
                           <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#c4614e" }}>VOUCHER</span>
                         </div>
                       )}
                     </div>
                     {/* Collection merged */}
-                    <div className="relative overflow-hidden">
+                    <div className="relative aspect-square overflow-hidden">
                       {v.mergedImageUrl ? (
-                        <img src={v.mergedImageUrl} alt="collection" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <img src={v.mergedImageUrl} alt="collection" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON_LIGHT }}>
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: SALMON_LIGHT }}>
                           <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#d4917e" }}>COLLECTION</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Bottom row: first coupon | count */}
-                  <div className="grid grid-cols-2 border-t border-border/60" style={{ height: 200 }}>
+                  {/* Bottom row: first coupon | count — each cell is a perfect square */}
+                  <div className="grid grid-cols-2 border-t border-border/60">
                     {/* First coupon thumbnail */}
-                    <div className="relative overflow-hidden border-r border-border/60">
+                    <div className="relative aspect-square overflow-hidden border-r border-border/60">
                       {firstImageUrl ? (
-                        <img src={firstImageUrl} alt="coupon 1" className="w-full h-full object-cover" />
+                        <img src={firstImageUrl} alt="coupon 1" className="absolute inset-0 w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full relative" style={{ background: STRIPE }}>
+                        <div className="absolute inset-0" style={{ background: STRIPE }}>
                           <span className="absolute top-3 left-3 text-[9px] font-mono text-zinc-400">c1</span>
                         </div>
                       )}
                     </div>
                     {/* Remaining coupon count */}
-                    <div className="relative flex flex-col items-center justify-between p-3" style={{ background: STRIPE }}>
-                      <span className="text-[11px] font-mono text-zinc-400">+</span>
-                      <span className="text-2xl font-bold text-zinc-400/60 font-mono">{count}</span>
+                    <div className="relative aspect-square flex flex-col items-center justify-between p-4" style={{ background: STRIPE }}>
+                      <span className="text-sm font-mono text-zinc-400">+</span>
+                      <span className="text-4xl font-bold text-zinc-400/50 font-mono">{count}</span>
                     </div>
                   </div>
                 </Link>
