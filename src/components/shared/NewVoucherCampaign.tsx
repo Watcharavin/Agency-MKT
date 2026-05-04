@@ -106,7 +106,7 @@ export function CreateVoucherForm({
           Super AFF
         </Link>
         <span>/</span>
-        <span className="text-foreground">New Voucher</span>
+        <span className="text-foreground">Create Voucher</span>
       </div>
 
       {/* Title */}

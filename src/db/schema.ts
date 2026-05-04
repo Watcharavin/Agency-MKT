@@ -83,6 +83,7 @@ export const voucherCollections = pgTable("voucher_collections", {
   status:         text("status").default("draft"),      // "draft" | "active"
   validFrom:      timestamp("valid_from"),              // ช่วงเวลา active
   validUntil:     timestamp("valid_until"),
+  coverImageUrl:  text("cover_image_url"),              // รูป voucher cover (AI generated)
   mergedImageUrl: text("merged_image_url"),             // รูปรวมของ coupon ทั้งหมด (AI generated)
   createdAt:      timestamp("created_at").defaultNow(),
   updatedAt:      timestamp("updated_at").defaultNow(),
@@ -93,7 +94,7 @@ export const voucherCollections = pgTable("voucher_collections", {
 export const coupons = pgTable("coupons", {
   id:            text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   collectionId:  text("collection_id").notNull().references(() => voucherCollections.id, { onDelete: "cascade" }),
-  productId:     text("product_id").references(() => products.id),  // สินค้าที่ผูกกับ coupon
+  productId:     text("product_id").references(() => products.id, { onDelete: "set null" }),  // สินค้าที่ผูกกับ coupon
   name:          text("name").notNull(),                // ชื่อ coupon
   code:          text("code"),                          // รหัสส่วนลด
   discount:      text("discount"),                      // เช่น "10%" หรือ "฿200 OFF"

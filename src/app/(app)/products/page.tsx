@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { DeleteProductButton } from "@/components/shared/DeleteProductButton";
 
 export default async function ProductsPage() {
   const { userId } = await auth();
@@ -45,38 +46,39 @@ export default async function ProductsPage() {
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {items.map((p) => (
-            <Link
+            <div
               key={p.id}
-              href={`/products/${p.id}`}
-              className="rounded-lg border border-border bg-card overflow-hidden hover:border-foreground/30 transition-colors group"
+              className="rounded-lg border border-border bg-card overflow-hidden"
             >
               {/* รูปสินค้า */}
               <div className="aspect-square bg-secondary flex items-center justify-center overflow-hidden">
                 {p.photoUrls && p.photoUrls.length > 0 ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={p.photoUrls[0]}
+                    src={`/api/blob?url=${encodeURIComponent(p.photoUrls[0])}`}
                     alt={p.name}
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="h-full w-full object-cover"
                   />
                 ) : (
                   <span className="text-3xl text-muted-foreground/30">◧</span>
                 )}
               </div>
               {/* ข้อมูล */}
-              <div className="p-3">
-                <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-muted-foreground">{p.category ?? "—"}</p>
-                  <p className="text-xs font-mono text-foreground">
-                    {p.price != null ? `฿${(p.price / 100).toLocaleString()}` : "—"}
-                  </p>
+              <div className="p-3 space-y-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-muted-foreground">{p.category ?? "—"}</p>
+                    <p className="text-xs font-mono text-foreground">
+                      {p.price != null ? `฿${(p.price / 100).toLocaleString()}` : "—"}
+                    </p>
+                  </div>
+                  {p.sku && (
+                    <p className="text-[10px] font-mono text-muted-foreground mt-1">{p.sku}</p>
+                  )}
                 </div>
-                {p.sku && (
-                  <p className="text-[10px] font-mono text-muted-foreground mt-1">{p.sku}</p>
-                )}
+                <DeleteProductButton productId={p.id} />
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

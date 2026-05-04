@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
   const blob = await put(`products/${userId}/${Date.now()}-${file.name}`, file, {
-    access: "public",
+    access: "private",
   });
 
   return NextResponse.json({ url: blob.url });

@@ -166,7 +166,7 @@ export function NewProductForm() {
               {photos.map((p) => (
                 <div key={p.url} className="relative group rounded-md overflow-hidden border border-border aspect-square bg-secondary">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.url} alt={p.name} className="h-full w-full object-cover" />
+                  <img src={`/api/blob?url=${encodeURIComponent(p.url)}`} alt={p.name} className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removePhoto(p.url)}
