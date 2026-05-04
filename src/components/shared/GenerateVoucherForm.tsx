@@ -24,6 +24,7 @@ export function GenerateVoucherForm({
   const [running, setRunning] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [completedCount, setCompletedCount] = useState(0);
   const router = useRouter();
 
   const selectedVoucher = vouchers.find((v) => v.id === selectedVoucherId) ?? null;
@@ -41,6 +42,7 @@ export function GenerateVoucherForm({
     setRunning(true);
     setError(null);
     setStatusText("กำลังสร้าง tasks…");
+    setCompletedCount(0);
 
     try {
       // Step 1: Start generation tasks
@@ -78,12 +80,19 @@ export function GenerateVoucherForm({
             const pollRes = await fetch(`/api/generate/status/${task.taskId}`);
             if (!pollRes.ok) continue;
             const { status, imageUrl } = await pollRes.json();
-            if (status === "completed") return { ...task, imageUrl: imageUrl ?? null };
-            if (status === "failed") return { ...task, imageUrl: null };
+            if (status === "completed") {
+              setCompletedCount((prev) => prev + 1);
+              return { ...task, imageUrl: imageUrl ?? null };
+            }
+            if (status === "failed") {
+              setCompletedCount((prev) => prev + 1);
+              return { ...task, imageUrl: null };
+            }
           } catch {
             // network hiccup — retry
           }
         }
+        setCompletedCount((prev) => prev + 1);
         return { ...task, imageUrl: null }; // timeout
       }
 
@@ -238,10 +247,10 @@ export function GenerateVoucherForm({
           {selectedVoucher && (
             <Section title="Output" badge={`${totalImages} รูป · 1:1`} desc="AI สร้างรูปทั้งหมดนี้ให้อัตโนมัติ">
               <div className="flex gap-2 overflow-x-auto pb-1">
-                <PreviewTile label="VOUCHER" sub="cover" accent />
-                <PreviewTile label="COLLECTION" sub="merged" accent />
+                <PreviewTile label="VOUCHER" sub="cover" accent running={running} completed={running && completedCount > 0} />
+                <PreviewTile label="COLLECTION" sub="merged" accent running={running} completed={running && completedCount > 1} />
                 {Array.from({ length: couponCount }).map((_, i) => (
-                  <PreviewTile key={i} label={`coupon ${i + 1}`} />
+                  <PreviewTile key={i} label={`coupon ${i + 1}`} running={running} completed={running && completedCount > i + 2} />
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground mt-2">
@@ -272,6 +281,25 @@ export function GenerateVoucherForm({
               <Row label="Brand DNA" value={brand ? brand.name : "—"} />
             </div>
 
+            {running && selectedVoucher && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">
+                    {completedCount < totalImages ? "กำลัง generate…" : "เสร็จแล้ว"}
+                  </span>
+                  <span className="text-[10px] font-mono font-semibold text-foreground">
+                    {completedCount}/{totalImages}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full bg-foreground rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${totalImages > 0 ? Math.round((completedCount / totalImages) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleRun}
               disabled={!selectedVoucher || running}
@@ -290,7 +318,7 @@ export function GenerateVoucherForm({
             {statusText && (
               <p className="text-[10px] text-muted-foreground text-center -mt-2">{statusText}</p>
             )}
-            {!statusText && (
+            {!statusText && !running && (
               <p className="text-[10px] text-muted-foreground text-center -mt-2">
                 ~2–3 นาที · บันทึกอัตโนมัติ
               </p>
@@ -338,22 +366,37 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   );
 }
 
-function PreviewTile({ label, sub, accent }: { label: string; sub?: string; accent?: boolean }) {
+function PreviewTile({
+  label, sub, accent, running, completed,
+}: {
+  label: string; sub?: string; accent?: boolean; running?: boolean; completed?: boolean;
+}) {
   return (
     <div
       className={cn(
-        "shrink-0 w-20 h-20 rounded-md border flex flex-col items-center justify-center gap-0.5 text-center",
-        accent ? "border-primary bg-primary/10" : "border-border"
+        "shrink-0 w-20 h-20 rounded-md border flex flex-col items-center justify-center gap-0.5 text-center relative overflow-hidden transition-all duration-500",
+        completed
+          ? "border-green-400 bg-green-50"
+          : accent
+          ? "border-primary bg-primary/10"
+          : "border-border",
+        running && !completed ? "animate-pulse" : ""
       )}
-      style={!accent ? { background: "repeating-linear-gradient(45deg, #e8e3d8, #e8e3d8 8px, #f0ece4 8px, #f0ece4 16px)" } : undefined}
+      style={!accent && !completed ? { background: "repeating-linear-gradient(45deg, #e8e3d8, #e8e3d8 8px, #f0ece4 8px, #f0ece4 16px)" } : undefined}
     >
-      <span className={cn("text-[10px] font-mono font-semibold uppercase tracking-wide", accent ? "text-primary" : "text-foreground/40")}>
-        {label}
-      </span>
-      {sub && (
-        <span className={cn("text-[9px] font-mono", accent ? "text-primary/70" : "text-foreground/30")}>
-          {sub}
-        </span>
+      {completed ? (
+        <span className="text-green-500 text-xl leading-none">✓</span>
+      ) : (
+        <>
+          <span className={cn("text-[10px] font-mono font-semibold uppercase tracking-wide", accent ? "text-primary" : "text-foreground/40")}>
+            {label}
+          </span>
+          {sub && (
+            <span className={cn("text-[9px] font-mono", accent ? "text-primary/70" : "text-foreground/30")}>
+              {sub}
+            </span>
+          )}
+        </>
       )}
     </div>
   );
