@@ -12,10 +12,16 @@ export function EditProductForm({ product }: { product: Product }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
-  const [photos, setPhotos] = useState<{ url: string; name: string }[]>(
-    (product.photoUrls as string[] ?? []).map((url) => ({ url, name: url.split("/").pop() ?? "photo" }))
+  // preview: object URL for new uploads, or /api/blob proxy for existing
+  const [photos, setPhotos] = useState<{ url: string; preview: string; name: string }[]>(
+    (product.photoUrls as string[] ?? []).map((url) => ({
+      url,
+      preview: `/api/blob?url=${encodeURIComponent(url)}`,
+      name: url.split("/").pop() ?? "photo",
+    }))
   );
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>((product.tags as string[]) ?? []);
   const [tagInput, setTagInput] = useState("");
 
@@ -23,24 +29,44 @@ export function EditProductForm({ product }: { product: Product }) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setUploading(true);
+    setUploadError(null);
+
+    const previews = files.map((file) => ({
+      url: "",
+      preview: URL.createObjectURL(file),
+      name: file.name,
+      _file: file,
+    }));
+    setPhotos((prev) => [...prev, ...previews.map(({ _file: _, ...p }) => p)]);
+
     try {
       const uploaded = await Promise.all(
-        files.map(async (file) => {
+        files.map(async (file, i) => {
           const fd = new FormData();
           fd.append("file", file);
           const res = await fetch("/api/products/upload", { method: "POST", body: fd });
+          if (!res.ok) throw new Error(`อัปโหลด ${file.name} ไม่สำเร็จ`);
           const data = await res.json();
-          return { url: data.url as string, name: file.name };
+          return { blobUrl: data.url as string, preview: previews[i].preview };
         })
       );
-      setPhotos((prev) => [...prev, ...uploaded]);
+      setPhotos((prev) =>
+        prev.map((p) => {
+          const match = uploaded.find((u) => u.preview === p.preview);
+          return match ? { ...p, url: match.blobUrl } : p;
+        })
+      );
+    } catch (err) {
+      setUploadError(String(err));
+      setPhotos((prev) => prev.filter((p) => p.url !== ""));
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
   }
 
-  function removePhoto(url: string) {
-    setPhotos((prev) => prev.filter((p) => p.url !== url));
+  function removePhoto(preview: string) {
+    setPhotos((prev) => prev.filter((p) => p.preview !== preview));
   }
 
   function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -64,7 +90,7 @@ export function EditProductForm({ product }: { product: Product }) {
       description: fd.get("description"),
       category:    fd.get("category"),
       tags,
-      photoUrls:   photos.map((p) => p.url),
+      photoUrls:   photos.filter((p) => p.url).map((p) => p.url),
     };
     try {
       const res = await fetch(`/api/products/${product.id}`, {
@@ -161,16 +187,24 @@ export function EditProductForm({ product }: { product: Product }) {
             onChange={handlePhotoChange}
           />
 
+          {uploadError && (
+            <p className="text-xs text-red-500 bg-red-50 rounded-md px-3 py-2">{uploadError}</p>
+          )}
           {photos.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mt-2">
               {photos.map((p) => (
-                <div key={p.url} className="relative group rounded-md overflow-hidden border border-border aspect-square bg-secondary">
+                <div key={p.preview} className="relative group rounded-md overflow-hidden border border-border aspect-square bg-secondary">
+                  {p.url === "" && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10">
+                      <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                    </div>
+                  )}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/blob?url=${encodeURIComponent(p.url)}`} alt={p.name} className="h-full w-full object-cover" />
+                  <img src={p.preview} alt={p.name} className="h-full w-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => removePhoto(p.url)}
-                    className="absolute top-1 right-1 rounded-full bg-foreground/80 text-card w-5 h-5 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    onClick={() => removePhoto(p.preview)}
+                    className="absolute top-1 right-1 rounded-full bg-foreground/80 text-card w-5 h-5 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20"
                   >
                     ×
                   </button>
