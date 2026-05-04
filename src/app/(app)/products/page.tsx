@@ -54,7 +54,7 @@ export default async function ProductsPage() {
               <div className="aspect-square bg-secondary flex items-center justify-center overflow-hidden">
                 {p.photoUrls && p.photoUrls.length > 0 ? (
                   <img
-                    src={`/api/blob?url=${encodeURIComponent(p.photoUrls[0])}`}
+                    src={(p.photoUrls as string[])[0].includes("public.blob") ? (p.photoUrls as string[])[0] : `/api/blob?url=${encodeURIComponent((p.photoUrls as string[])[0])}`}
                     alt={p.name}
                     className="h-full w-full object-cover"
                   />

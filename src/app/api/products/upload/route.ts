@@ -1,19 +1,30 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/next";
 
+// Client-side direct upload — file goes straight to Vercel Blob CDN, bypasses server body limit
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const form = await req.formData();
-  const file = form.get("file") as File | null;
+  const body = (await req.json()) as HandleUploadBody;
 
-  if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
-
-  const blob = await put(`products/${userId}/${Date.now()}-${file.name}`, file, {
-    access: "private",
-  });
-
-  return NextResponse.json({ url: blob.url });
+  try {
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (_pathname) => {
+        return {
+          allowedContentTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+          addRandomSuffix: true,
+        };
+      },
+      onUploadCompleted: async ({ blob }) => {
+        console.log("[upload] completed:", blob.url);
+      },
+    });
+    return NextResponse.json(jsonResponse);
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+  }
 }

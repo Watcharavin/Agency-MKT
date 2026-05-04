@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { upload } from "@vercel/blob/client";
 
 const CATEGORIES = ["Skincare", "Makeup", "Haircare", "Supplement", "Food & Drink", "Fashion", "Accessory", "Home", "Other"];
 
@@ -35,12 +36,11 @@ export function NewProductForm() {
     try {
       const uploaded = await Promise.all(
         files.map(async (file, i) => {
-          const fd = new FormData();
-          fd.append("file", file);
-          const res = await fetch("/api/products/upload", { method: "POST", body: fd });
-          if (!res.ok) throw new Error(`อัปโหลด ${file.name} ไม่สำเร็จ`);
-          const data = await res.json();
-          return { blobUrl: data.url as string, preview: previews[i].preview };
+          const blob = await upload(`products/${Date.now()}-${file.name}`, file, {
+            access: "public",
+            handleUploadUrl: "/api/products/upload",
+          });
+          return { blobUrl: blob.url, preview: previews[i].preview };
         })
       );
       // Replace placeholder url with real blob URL, keep preview
