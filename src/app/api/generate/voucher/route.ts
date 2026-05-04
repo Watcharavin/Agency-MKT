@@ -56,10 +56,11 @@ export async function POST(req: NextRequest) {
 
   if (!voucherId) return NextResponse.json({ error: "voucherId required" }, { status: 400 });
 
-  // Verify brand ownership
-  const brandRows = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1);
+  // Fetch full brand DNA
+  const brandRows = await db.select().from(brands).where(eq(brands.userId, userId)).limit(1);
   if (brandRows.length === 0) return NextResponse.json({ error: "Brand not found" }, { status: 404 });
-  const brandId = brandRows[0].id;
+  const brand = brandRows[0];
+  const brandId = brand.id;
 
   // Verify voucher belongs to this brand
   const voucherRows = await db
@@ -93,14 +94,30 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Build full prompt
-  const toneStr = (tones as string[])?.join(", ") ?? "";
+  // Build full prompt with Brand DNA + voucher detail
+  const toneStr = [
+    ...((tones as string[]) ?? []),
+    ...((brand.toneTags as string[]) ?? []),
+  ].filter(Boolean).join(", ");
+
   const fullPrompt = [
     prompt,
-    toneStr ? `Tone: ${toneStr}` : "",
+    // Brand DNA
+    brand.name ? `Brand name: ${brand.name}` : "",
+    brand.tagline ? `Tagline: "${brand.tagline}"` : "",
+    brand.about ? `About: ${brand.about}` : "",
+    brand.audience ? `Target audience: ${brand.audience}` : "",
+    toneStr ? `Tone & style: ${toneStr}` : "",
+    brand.primaryColor ? `Primary brand color: ${brand.primaryColor}` : "",
+    brand.doSay ? `Do say: ${brand.doSay}` : "",
+    brand.dontSay ? `Do NOT say or show: ${brand.dontSay}` : "",
+    // Voucher detail
     slogan ? `Slogan: "${slogan}"` : "",
-    `Brand: ${voucher.name}`,
-    "High quality product marketing image, clean minimal design.",
+    voucher.description ? `Voucher description: ${voucher.description}` : "",
+    voucher.caption ? `Caption: ${voucher.caption}` : "",
+    voucher.valueCap ? `Value cap: ${voucher.valueCap}` : "",
+    // Quality directive
+    "High quality product marketing image, clean minimal design, 1080x1080.",
   ]
     .filter(Boolean)
     .join(". ");
