@@ -77,7 +77,7 @@ export default async function SuperAffPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-5">
+        <div className="grid grid-cols-3 gap-4">
           {vouchers.map((v) => {
             const { count, firstImageUrl } = couponDataMap[v.id] ?? { count: 0, firstImageUrl: null };
             const from = fmtDate(v.validFrom);
