@@ -94,7 +94,7 @@ export default async function SuperAffPage() {
                     {/* Voucher cover */}
                     <div className="relative overflow-hidden border-r border-border/60">
                       {v.coverImageUrl ? (
-                        <img src={v.coverImageUrl} alt="cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <img src={v.coverImageUrl} alt="cover" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON }}>
                           <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#c4614e" }}>VOUCHER</span>
@@ -104,7 +104,7 @@ export default async function SuperAffPage() {
                     {/* Collection merged */}
                     <div className="relative overflow-hidden">
                       {v.mergedImageUrl ? (
-                        <img src={v.mergedImageUrl} alt="collection" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <img src={v.mergedImageUrl} alt="collection" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON_LIGHT }}>
                           <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#d4917e" }}>COLLECTION</span>
@@ -118,7 +118,7 @@ export default async function SuperAffPage() {
                     {/* First coupon thumbnail */}
                     <div className="relative overflow-hidden border-r border-border/60">
                       {firstImageUrl ? (
-                        <img src={firstImageUrl} alt="coupon 1" className="w-full h-full object-cover" />
+                        <img src={firstImageUrl} alt="coupon 1" className="w-full h-full object-contain" />
                       ) : (
                         <div className="w-full h-full relative" style={{ background: STRIPE }}>
                           <span className="absolute top-3 left-3 text-[9px] font-mono text-zinc-400">c1</span>
