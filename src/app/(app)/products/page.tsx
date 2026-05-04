@@ -76,7 +76,15 @@ export default async function ProductsPage() {
                     <p className="text-[10px] font-mono text-muted-foreground mt-1">{p.sku}</p>
                   )}
                 </div>
-                <DeleteProductButton productId={p.id} />
+                <div className="flex gap-2">
+                    <Link
+                      href={`/products/${p.id}`}
+                      className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground text-center hover:bg-secondary transition-colors"
+                    >
+                      แก้ไข
+                    </Link>
+                    <DeleteProductButton productId={p.id} />
+                  </div>
               </div>
             </div>
           ))}
