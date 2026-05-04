@@ -77,7 +77,7 @@ export default async function SuperAffPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-2 gap-5">
           {vouchers.map((v) => {
             const { count, firstImageUrl } = couponDataMap[v.id] ?? { count: 0, firstImageUrl: null };
             const from = fmtDate(v.validFrom);
@@ -90,11 +90,11 @@ export default async function SuperAffPage() {
                 {/* ── Image grid (clickable) ─────────────────── */}
                 <Link href={`/vouchers/${v.id}/result`} className="block group">
                   {/* Top row: VOUCHER | COLLECTION */}
-                  <div className="grid grid-cols-2" style={{ height: 160 }}>
+                  <div className="grid grid-cols-2" style={{ height: 280 }}>
                     {/* Voucher cover */}
                     <div className="relative overflow-hidden border-r border-border/60">
                       {v.coverImageUrl ? (
-                        <img src={v.coverImageUrl} alt="cover" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
+                        <img src={v.coverImageUrl} alt="cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON }}>
                           <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#c4614e" }}>VOUCHER</span>
@@ -104,7 +104,7 @@ export default async function SuperAffPage() {
                     {/* Collection merged */}
                     <div className="relative overflow-hidden">
                       {v.mergedImageUrl ? (
-                        <img src={v.mergedImageUrl} alt="collection" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
+                        <img src={v.mergedImageUrl} alt="collection" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON_LIGHT }}>
                           <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#d4917e" }}>COLLECTION</span>
@@ -114,11 +114,11 @@ export default async function SuperAffPage() {
                   </div>
 
                   {/* Bottom row: first coupon | count */}
-                  <div className="grid grid-cols-2 border-t border-border/60" style={{ height: 120 }}>
+                  <div className="grid grid-cols-2 border-t border-border/60" style={{ height: 200 }}>
                     {/* First coupon thumbnail */}
                     <div className="relative overflow-hidden border-r border-border/60">
                       {firstImageUrl ? (
-                        <img src={firstImageUrl} alt="coupon 1" className="w-full h-full object-contain" />
+                        <img src={firstImageUrl} alt="coupon 1" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full relative" style={{ background: STRIPE }}>
                           <span className="absolute top-3 left-3 text-[9px] font-mono text-zinc-400">c1</span>
