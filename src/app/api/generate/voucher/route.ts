@@ -123,8 +123,10 @@ export async function POST(req: NextRequest) {
     return url;
   }
 
-  // Gather all input photos (fallback to reliable public image if none)
-  const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=1080&q=80";
+  // Gather all input photos (fallback to our own hosted placeholder — no redirects)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://agency-mkt.vercel.app");
+  const FALLBACK_IMAGE = `${appUrl}/placeholder.jpg`;
 
   // --- Voucher cover task ---
   const firstProductPhotos = productIds.length > 0 ? productMap.get(productIds[0]) ?? [] : [];
