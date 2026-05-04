@@ -1,10 +1,33 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { DeleteVoucherButton } from "@/components/shared/DeleteVoucherButton";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { brands, voucherCollections, coupons } from "@/db/schema";
 import { eq } from "drizzle-orm";
+
+function fmtDate(d: Date | null | undefined) {
+  if (!d) return null;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(d));
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const s = (status ?? "draft").toLowerCase();
+  const styles: Record<string, string> = {
+    ready: "border-green-400 text-green-600",
+    sent: "border-rose-400 text-rose-500",
+    active: "border-green-400 text-green-600",
+    draft: "border-zinc-300 text-zinc-400",
+  };
+  return (
+    <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase ${styles[s] ?? styles.draft}`}>
+      {s}
+    </span>
+  );
+}
+
+const STRIPE = "repeating-linear-gradient(135deg, #e8e4da, #e8e4da 10px, #ede9e0 10px, #ede9e0 20px)";
+const SALMON = "linear-gradient(135deg, #fce8e4 0%, #f8d8d2 100%)";
+const SALMON_LIGHT = "linear-gradient(135deg, #fdf2f0 0%, #fae6e1 100%)";
 
 export default async function SuperAffPage() {
   const { userId } = await auth();
@@ -17,14 +40,19 @@ export default async function SuperAffPage() {
     ? await db.select().from(voucherCollections).where(eq(voucherCollections.brandId, brand.id))
     : [];
 
-  const couponCountMap: Record<string, number> = {};
+  // Fetch first coupon per voucher for thumbnail preview
+  const couponDataMap: Record<string, { count: number; firstImageUrl: string | null }> = {};
   for (const v of vouchers) {
-    const rows = await db.select().from(coupons).where(eq(coupons.collectionId, v.id));
-    couponCountMap[v.id] = rows.length;
+    const rows = await db.select().from(coupons).where(eq(coupons.collectionId, v.id)).orderBy(coupons.sortOrder);
+    couponDataMap[v.id] = {
+      count: rows.length,
+      firstImageUrl: rows[0]?.imageUrl ?? null,
+    };
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Distribution</p>
@@ -40,65 +68,106 @@ export default async function SuperAffPage() {
       </div>
 
       {vouchers.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-12 text-center">
+        <div className="rounded-xl border border-border bg-card p-12 text-center">
           <p className="text-2xl mb-3">📦</p>
           <p className="text-sm text-foreground font-medium">ยังไม่มี Voucher Collection</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            สร้าง voucher พร้อม coupon แล้วส่งให้ Affiliate แชร์
-          </p>
-          <Link
-            href="/super-aff/new"
-            className="mt-5 inline-block rounded-md border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors"
-          >
+          <p className="text-xs text-muted-foreground mt-1">สร้าง voucher พร้อม coupon แล้วส่งให้ Affiliate แชร์</p>
+          <Link href="/super-aff/new" className="mt-5 inline-block rounded-md border border-border bg-background px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors">
             + Create Voucher แรก
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
-          {vouchers.map((v) => (
-            <div key={v.id} className="rounded-lg border border-border bg-card overflow-hidden">
-              {/* Cover image — click to view result */}
-              <Link href={`/vouchers/${v.id}/result`} className="block h-36 w-full relative overflow-hidden group">
-                {v.coverImageUrl ? (
-                  <img src={v.coverImageUrl} alt={v.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center" style={{ background: "repeating-linear-gradient(45deg, #e8e3d8, #e8e3d8 12px, #f0ece4 12px, #f0ece4 24px)" }}>
-                    <span className="text-xs text-zinc-400 font-mono">ยังไม่มีรูป · กด Generate</span>
+        <div className="grid grid-cols-3 gap-5">
+          {vouchers.map((v) => {
+            const { count, firstImageUrl } = couponDataMap[v.id] ?? { count: 0, firstImageUrl: null };
+            const from = fmtDate(v.validFrom);
+            const until = fmtDate(v.validUntil);
+            const dateStr = from && until ? `${from} — ${until}` : from ? `From ${from}` : null;
+
+            return (
+              <div key={v.id} className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+
+                {/* ── Image grid (clickable) ─────────────────── */}
+                <Link href={`/vouchers/${v.id}/result`} className="block group">
+                  {/* Top row: VOUCHER | COLLECTION */}
+                  <div className="grid grid-cols-2" style={{ height: 160 }}>
+                    {/* Voucher cover */}
+                    <div className="relative overflow-hidden border-r border-border/60">
+                      {v.coverImageUrl ? (
+                        <img src={v.coverImageUrl} alt="cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON }}>
+                          <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#c4614e" }}>VOUCHER</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Collection merged */}
+                    <div className="relative overflow-hidden">
+                      {v.mergedImageUrl ? (
+                        <img src={v.mergedImageUrl} alt="collection" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON_LIGHT }}>
+                          <span className="text-[10px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#d4917e" }}>COLLECTION</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-                <span className="absolute top-2 right-2 rounded-full bg-card/80 px-2 py-0.5 text-[10px] font-mono text-foreground">
-                  {v.status ?? "draft"}
-                </span>
-                {/* View overlay */}
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded-full">ดูรูปทั้งหมด →</span>
-                </div>
-              </Link>
-              <div className="p-4 space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{v.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {couponCountMap[v.id] ?? 0} coupon{(couponCountMap[v.id] ?? 0) !== 1 ? "s" : ""}
+
+                  {/* Bottom row: first coupon | count */}
+                  <div className="grid grid-cols-2 border-t border-border/60" style={{ height: 120 }}>
+                    {/* First coupon thumbnail */}
+                    <div className="relative overflow-hidden border-r border-border/60">
+                      {firstImageUrl ? (
+                        <img src={firstImageUrl} alt="coupon 1" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full relative" style={{ background: STRIPE }}>
+                          <span className="absolute top-3 left-3 text-[9px] font-mono text-zinc-400">c1</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Remaining coupon count */}
+                    <div className="relative flex flex-col items-center justify-between p-3" style={{ background: STRIPE }}>
+                      <span className="text-[11px] font-mono text-zinc-400">+</span>
+                      <span className="text-2xl font-bold text-zinc-400/60 font-mono">{count}</span>
+                    </div>
+                  </div>
+                </Link>
+
+                {/* ── Info section ──────────────────────────── */}
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-base font-bold text-foreground leading-tight">{v.name}</p>
+                    <StatusBadge status={v.status ?? "draft"} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {count} coupon{count !== 1 ? "s" : ""}
+                    {dateStr ? ` · ${dateStr}` : ""}
                   </p>
+                  <div className="flex gap-2 pt-1">
+                    <Link
+                      href={`/vouchers/${v.id}/result`}
+                      className="rounded-md border border-border px-4 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      View
+                    </Link>
+                    <Link
+                      href={`/super-aff/${v.id}`}
+                      className="rounded-md border border-border px-4 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                    >
+                      Edit
+                    </Link>
+                    <Link
+                      href={`/vouchers/new?voucherId=${v.id}`}
+                      className="rounded-md bg-foreground px-4 py-1.5 text-xs font-medium text-card hover:opacity-80 transition-opacity"
+                    >
+                      Send →
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Link
-                    href={`/vouchers/new?voucherId=${v.id}`}
-                    className="flex-1 rounded-md bg-foreground py-1.5 text-center text-xs font-medium text-card hover:opacity-80 transition-opacity"
-                  >
-                    Generate
-                  </Link>
-                  <Link
-                    href={`/super-aff/${v.id}`}
-                    className="flex-1 rounded-md border border-border py-1.5 text-center text-xs text-foreground hover:bg-secondary transition-colors"
-                  >
-                    Edit
-                  </Link>
-                </div>
-                <DeleteVoucherButton id={v.id} />
+
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
