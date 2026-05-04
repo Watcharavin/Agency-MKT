@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
     brand.about ? `About: ${brand.about}` : "",
     brand.audience ? `Target audience: ${brand.audience}` : "",
     toneStr ? `Tone & style: ${toneStr}` : "",
-    brand.primaryColor ? `Primary brand color: ${brand.primaryColor}` : "",
+    brand.primaryColor ? `Brand colors: primary ${brand.primaryColor}${brand.secondaryColor ? `, secondary ${brand.secondaryColor}` : ""}${brand.thirdColor ? `, accent ${brand.thirdColor}` : ""}` : "",
     brand.doSay ? `Do say: ${brand.doSay}` : "",
     brand.dontSay ? `Do NOT say or show: ${brand.dontSay}` : "",
     // Voucher detail
