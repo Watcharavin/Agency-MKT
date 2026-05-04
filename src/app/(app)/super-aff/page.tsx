@@ -57,17 +57,23 @@ export default async function SuperAffPage() {
         <div className="grid grid-cols-3 gap-4">
           {vouchers.map((v) => (
             <div key={v.id} className="rounded-lg border border-border bg-card overflow-hidden">
-              {/* Cover image */}
-              <div className="h-36 w-full relative overflow-hidden">
+              {/* Cover image — click to view result */}
+              <Link href={`/vouchers/${v.id}/result`} className="block h-36 w-full relative overflow-hidden group">
                 {v.coverImageUrl ? (
-                  <img src={v.coverImageUrl} alt={v.name} className="w-full h-full object-cover" />
+                  <img src={v.coverImageUrl} alt={v.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 ) : (
-                  <div className="w-full h-full" style={{ background: "repeating-linear-gradient(45deg, #e8e3d8, #e8e3d8 12px, #f0ece4 12px, #f0ece4 24px)" }} />
+                  <div className="w-full h-full flex items-center justify-center" style={{ background: "repeating-linear-gradient(45deg, #e8e3d8, #e8e3d8 12px, #f0ece4 12px, #f0ece4 24px)" }}>
+                    <span className="text-xs text-zinc-400 font-mono">ยังไม่มีรูป · กด Generate</span>
+                  </div>
                 )}
                 <span className="absolute top-2 right-2 rounded-full bg-card/80 px-2 py-0.5 text-[10px] font-mono text-foreground">
                   {v.status ?? "draft"}
                 </span>
-              </div>
+                {/* View overlay */}
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded-full">ดูรูปทั้งหมด →</span>
+                </div>
+              </Link>
               <div className="p-4 space-y-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">{v.name}</p>
