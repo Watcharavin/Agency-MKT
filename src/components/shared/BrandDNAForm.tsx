@@ -33,9 +33,10 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
 
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
-  const [logoUrl,    setLogoUrl]    = useState<string>(d?.logoUrl ?? "");
-  const [logoPreview, setLogoPreview] = useState<string>(d?.logoUrl ?? "");
+  const [logoUrl,      setLogoUrl]      = useState<string>(d?.logoUrl ?? "");
+  const [logoPreview,  setLogoPreview]  = useState<string>(d?.logoUrl ?? "");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError,    setLogoError]    = useState<string | null>(null);
   const [selectedTones,     setSelectedTones]     = useState<string[]>(d?.toneTags    ?? []);
   const [selectedChannels,  setSelectedChannels]  = useState<string[]>(d?.channels   ?? []);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(d?.languages  ?? ["TH"]);
@@ -50,12 +51,17 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
     if (!file) return;
     setLogoPreview(URL.createObjectURL(file));
     setLogoUploading(true);
+    setLogoError(null);
     try {
       const blob = await upload(`brand/${Date.now()}-${file.name}`, file, {
         access: "public",
         handleUploadUrl: "/api/upload",
       });
       setLogoUrl(blob.url);
+    } catch {
+      setLogoError("อัปโหลดโลโก้ไม่สำเร็จ กรุณาลองใหม่");
+      setLogoPreview(d?.logoUrl ?? "");
+      setLogoUrl(d?.logoUrl ?? "");
     } finally {
       setLogoUploading(false);
       e.target.value = "";
@@ -76,6 +82,9 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
       secondaryColor: d?.secondaryColor ?? "#e2ddcf",
       thirdColor:     d?.thirdColor     ?? "#1a1916",
     });
+    setLogoUrl(d?.logoUrl ?? "");
+    setLogoPreview(d?.logoUrl ?? "");
+    setLogoError(null);
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -269,6 +278,9 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
               className="hidden"
               onChange={handleLogoChange}
             />
+            {logoError && (
+              <p className="text-xs text-red-500 mt-1">{logoError}</p>
+            )}
             <p className="text-[11px] text-muted-foreground mt-1">JPG, PNG, SVG · แนะนำ PNG พื้นหลังโปร่งใส</p>
           </Field>
         </Card>

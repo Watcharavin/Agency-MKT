@@ -34,7 +34,7 @@ export function NewProductForm() {
     setPhotos((prev) => [...prev, ...previews.map(({ _file: _, ...p }) => p)]);
 
     try {
-      const uploaded = await Promise.all(
+      const results = await Promise.allSettled(
         files.map(async (file, i) => {
           const blob = await upload(`products/${Date.now()}-${file.name}`, file, {
             access: "public",
@@ -43,16 +43,26 @@ export function NewProductForm() {
           return { blobUrl: blob.url, preview: previews[i].preview };
         })
       );
-      // Replace placeholder url with real blob URL, keep preview
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<{ blobUrl: string; preview: string }> => r.status === "fulfilled")
+        .map((r) => r.value);
+      const failedPreviews = results
+        .map((r, i) => (r.status === "rejected" ? previews[i].preview : null))
+        .filter((p): p is string => p !== null);
+
       setPhotos((prev) =>
-        prev.map((p) => {
-          const match = uploaded.find((u) => u.preview === p.preview);
-          return match ? { ...p, url: match.blobUrl } : p;
-        })
+        prev
+          .filter((p) => !failedPreviews.includes(p.preview))
+          .map((p) => {
+            const match = succeeded.find((u) => u.preview === p.preview);
+            return match ? { ...p, url: match.blobUrl } : p;
+          })
       );
+      if (failedPreviews.length > 0) {
+        setUploadError(`อัปโหลดไม่สำเร็จ ${failedPreviews.length} ไฟล์ — ไฟล์อื่นอัปโหลดสำเร็จแล้ว`);
+      }
     } catch (err) {
       setUploadError(String(err));
-      // Remove failed previews (those with empty url)
       setPhotos((prev) => prev.filter((p) => p.url !== ""));
     } finally {
       setUploading(false);
