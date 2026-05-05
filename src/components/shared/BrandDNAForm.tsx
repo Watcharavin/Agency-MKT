@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import type { Brand } from "@/db/schema";
 import { cn } from "@/lib/utils";
-import { upload } from "@vercel/blob/client";
 
 const TONE_OPTIONS = [
   "เป็นกันเอง", "มืออาชีพ", "สนุก", "หรูหรา",
@@ -53,11 +52,12 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
     setLogoUploading(true);
     setLogoError(null);
     try {
-      const blob = await upload(`brand/${Date.now()}-${file.name}`, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload",
-      });
-      setLogoUrl(blob.url);
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/brand/logo", { method: "POST", body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      const { url } = await res.json();
+      setLogoUrl(url);
     } catch {
       setLogoError("อัปโหลดโลโก้ไม่สำเร็จ กรุณาลองใหม่");
       setLogoPreview(d?.logoUrl ?? "");
