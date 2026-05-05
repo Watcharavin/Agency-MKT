@@ -130,12 +130,13 @@ export async function POST(req: NextRequest) {
   // In production: https://full-agency.vercel.app/api/blob?url=...
   // In dev: KIE can't reach localhost, so use URL as-is (will fail but dev only)
   function toPublicUrl(url: string): string {
-    // Only proxy private Vercel Blob URLs — pass everything else (Unsplash, etc.) directly
-    if (!url.includes("blob.vercel-storage.com")) return url;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ??
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-    if (appUrl) {
-      return `${appUrl}/api/media?url=${encodeURIComponent(url)}`;
+    // Public blob — accessible directly, no proxy needed
+    if (url.includes("public.blob.vercel-storage.com")) return url;
+    // Private Vercel Blob — proxy through /api/media
+    if (url.includes("blob.vercel-storage.com")) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ??
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+      if (appUrl) return `${appUrl}/api/media?url=${encodeURIComponent(url)}`;
     }
     return url;
   }
@@ -145,10 +146,19 @@ export async function POST(req: NextRequest) {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://agency-mkt.vercel.app");
   const FALLBACK_IMAGE = `${appUrl}/placeholder.jpg`;
 
+  // Brand logo — include as first input image so KIE incorporates it into every generated image
+  const logoPublicUrl = brand.logoUrl ? toPublicUrl(brand.logoUrl) : null;
+
+  function buildInputUrls(rawPhotos: string[], maxPhotos = 3): string[] {
+    const photos = rawPhotos.length > 0 ? rawPhotos.slice(0, maxPhotos) : [FALLBACK_IMAGE];
+    const urls = photos.map(toPublicUrl).filter((u) => u.length > 0);
+    // Logo goes first so KIE treats it as reference identity
+    return logoPublicUrl ? [logoPublicUrl, ...urls] : urls;
+  }
+
   // --- Voucher cover task ---
   const firstProductPhotos = productIds.length > 0 ? productMap.get(productIds[0]) ?? [] : [];
-  const rawCoverUrls = firstProductPhotos.length > 0 ? firstProductPhotos.slice(0, 4) : [FALLBACK_IMAGE];
-  const coverInputUrls = rawCoverUrls.map(toPublicUrl).filter((u) => u.length > 0);
+  const coverInputUrls = buildInputUrls(firstProductPhotos);
 
   console.log("[generate/voucher] productIds:", productIds);
   console.log("[generate/voucher] productMap:", Object.fromEntries(productMap));
@@ -163,13 +173,10 @@ export async function POST(req: NextRequest) {
   }
 
   // --- Collection (merged) task ---
-  // Use all product photos together for a "merged" feel
   const allPhotos = [...new Set(
     couponRows.flatMap((c) => (c.productId ? productMap.get(c.productId) ?? [] : []))
-  )].slice(0, 4);
-  const collectionUrls = allPhotos.length > 0
-    ? allPhotos.map(toPublicUrl).filter((u) => u.length > 0)
-    : coverInputUrls;
+  )];
+  const collectionUrls = buildInputUrls(allPhotos);
 
   try {
     const taskId = await createKieTask(collectionUrls, `${fullPrompt}. Collection overview — show all ${couponRows.length} coupons composited into one promotional image.`);
@@ -182,8 +189,7 @@ export async function POST(req: NextRequest) {
   // --- Per-coupon tasks ---
   for (const coupon of couponRows) {
     const photos = coupon.productId ? (productMap.get(coupon.productId) ?? []) : [];
-    const rawUrls = photos.length > 0 ? photos.slice(0, 4) : [FALLBACK_IMAGE];
-    const inputUrls = rawUrls.map(toPublicUrl).filter((u) => u.length > 0);
+    const inputUrls = buildInputUrls(photos);
 
     try {
       const taskId = await createKieTask(
