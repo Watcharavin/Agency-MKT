@@ -1,19 +1,15 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { db } from "@/db";
-import { brands, products } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { getCachedBrand, getCachedProducts } from "@/lib/data";
 import { DeleteProductButton } from "@/components/shared/DeleteProductButton";
 
 export default async function ProductsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const brand = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1);
-  const items = brand.length
-    ? await db.select().from(products).where(eq(products.brandId, brand[0].id))
-    : [];
+  const brand = await getCachedBrand(userId);
+  const items = brand.length ? await getCachedProducts(brand[0].id) : [];
 
   return (
     <div className="space-y-6">

@@ -17,7 +17,6 @@ export async function DELETE(
   if (brandRows.length === 0) return NextResponse.json({ error: "Brand not found" }, { status: 404 });
 
   await db.delete(products).where(and(eq(products.id, id), eq(products.brandId, brandRows[0].id)));
-
   return NextResponse.json({ ok: true });
 }
 
