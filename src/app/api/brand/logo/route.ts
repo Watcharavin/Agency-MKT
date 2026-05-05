@@ -11,9 +11,13 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-  const blob = await put(`brand/${userId}-${Date.now()}-${file.name}`, file, {
-    access: "public",
-  });
-
-  return NextResponse.json({ url: blob.url });
+  try {
+    const blob = await put(`brand/${userId}-${Date.now()}-${file.name}`, file, {
+      access: "public",
+    });
+    return NextResponse.json({ url: blob.url });
+  } catch (err) {
+    console.error("[brand/logo] put failed:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }

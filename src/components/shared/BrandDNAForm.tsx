@@ -58,8 +58,8 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
       if (!res.ok) throw new Error(await res.text());
       const { url } = await res.json();
       setLogoUrl(url);
-    } catch {
-      setLogoError("อัปโหลดโลโก้ไม่สำเร็จ กรุณาลองใหม่");
+    } catch (err) {
+      setLogoError(`อัปโหลดไม่สำเร็จ: ${String(err)}`);
       setLogoPreview(d?.logoUrl ?? "");
       setLogoUrl(d?.logoUrl ?? "");
     } finally {
