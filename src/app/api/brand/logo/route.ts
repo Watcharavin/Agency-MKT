@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const blob = await put(`brand/${userId}-${Date.now()}-${file.name}`, file, {
-      access: "public",
+      access: "private",
     });
     return NextResponse.json({ url: blob.url });
   } catch (err) {

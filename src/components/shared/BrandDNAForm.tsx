@@ -33,7 +33,9 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
   const [logoUrl,      setLogoUrl]      = useState<string>(d?.logoUrl ?? "");
-  const [logoPreview,  setLogoPreview]  = useState<string>(d?.logoUrl ?? "");
+  const [logoPreview,  setLogoPreview]  = useState<string>(
+    d?.logoUrl ? `/api/blob?url=${encodeURIComponent(d.logoUrl)}` : ""
+  );
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError,    setLogoError]    = useState<string | null>(null);
   const [selectedTones,     setSelectedTones]     = useState<string[]>(d?.toneTags    ?? []);
@@ -58,9 +60,9 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
       if (!res.ok) throw new Error(await res.text());
       const { url } = await res.json();
       setLogoUrl(url);
-    } catch (err) {
-      setLogoError(`อัปโหลดไม่สำเร็จ: ${String(err)}`);
-      setLogoPreview(d?.logoUrl ?? "");
+    } catch {
+      setLogoError("อัปโหลดโลโก้ไม่สำเร็จ กรุณาลองใหม่");
+      setLogoPreview(d?.logoUrl ? `/api/blob?url=${encodeURIComponent(d.logoUrl)}` : "");
       setLogoUrl(d?.logoUrl ?? "");
     } finally {
       setLogoUploading(false);
@@ -83,7 +85,7 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
       thirdColor:     d?.thirdColor     ?? "#1a1916",
     });
     setLogoUrl(d?.logoUrl ?? "");
-    setLogoPreview(d?.logoUrl ?? "");
+    setLogoPreview(d?.logoUrl ? `/api/blob?url=${encodeURIComponent(d.logoUrl)}` : "");
     setLogoError(null);
   }
 
