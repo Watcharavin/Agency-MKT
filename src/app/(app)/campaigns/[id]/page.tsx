@@ -2,8 +2,17 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/db";
-import { brands, campaigns } from "@/db/schema";
+import { brands, campaigns, generatedAssets } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { CampaignDetailClient } from "@/components/shared/CampaignDetailClient";
+
+const STATUS_STYLE: Record<string, string> = {
+  draft:      "bg-secondary text-muted-foreground",
+  generating: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+  generated:  "bg-green-50 text-green-700 border border-green-200",
+  scheduled:  "bg-blue-50 text-blue-700 border border-blue-200",
+  published:  "bg-foreground text-card",
+};
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
@@ -23,8 +32,11 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   if (rows.length === 0) notFound();
   const campaign = rows[0];
 
+  const assets = await db.select().from(generatedAssets).where(eq(generatedAssets.campaignId, id));
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <Link href="/campaigns" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
           ← กลับ Campaigns
@@ -37,23 +49,14 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
               {campaign.slideCount} slides · {campaign.language} · {campaign.tone}
             </p>
           </div>
-          <span className="rounded-full border border-border px-3 py-1 text-[11px] font-mono text-muted-foreground">
-            {campaign.status}
+          <span className={`rounded-full px-3 py-1 text-[11px] font-mono ${STATUS_STYLE[campaign.status ?? "draft"]}`}>
+            {campaign.status ?? "draft"}
           </span>
         </div>
       </div>
 
-      {/* Placeholder output area */}
-      <div className="rounded-lg border border-border bg-card p-12 text-center">
-        <p className="text-2xl mb-3">◑</p>
-        <p className="text-sm text-foreground font-medium">รอ Generate</p>
-        <p className="text-xs text-muted-foreground mt-1 mb-5">
-          กด Generate เพื่อให้ AI สร้างรูป + caption + hashtags
-        </p>
-        <button className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-card hover:opacity-80 transition-opacity">
-          ▶ Generate Content
-        </button>
-      </div>
+      {/* Main content (generate + results) */}
+      <CampaignDetailClient campaign={campaign} initialAssets={assets} />
 
       {/* Campaign info */}
       <div className="rounded-lg border border-border bg-card p-5 space-y-3">
@@ -63,6 +66,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
         <Row label="Tone" value={campaign.tone ?? "—"} />
         <Row label="ภาษา" value={campaign.language ?? "—"} />
         {campaign.brief && <Row label="Brief" value={campaign.brief} />}
+        <Row label="สร้างเมื่อ" value={campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—"} />
       </div>
     </div>
   );
