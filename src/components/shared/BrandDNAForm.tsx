@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import type { Brand } from "@/db/schema";
 import { cn } from "@/lib/utils";
+import { upload } from "@vercel/blob/client";
 
 const TONE_OPTIONS = [
   "เป็นกันเอง", "มืออาชีพ", "สนุก", "หรูหรา",
@@ -27,10 +28,14 @@ const COLOR_META: { key: ColorKey; label: string }[] = [
 
 export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
   const d = initialData;
-  const formRef = useRef<HTMLFormElement>(null);
+  const formRef    = useRef<HTMLFormElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
+  const [logoUrl,    setLogoUrl]    = useState<string>(d?.logoUrl ?? "");
+  const [logoPreview, setLogoPreview] = useState<string>(d?.logoUrl ?? "");
+  const [logoUploading, setLogoUploading] = useState(false);
   const [selectedTones,     setSelectedTones]     = useState<string[]>(d?.toneTags    ?? []);
   const [selectedChannels,  setSelectedChannels]  = useState<string[]>(d?.channels   ?? []);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(d?.languages  ?? ["TH"]);
@@ -39,6 +44,23 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
     secondaryColor: d?.secondaryColor ?? "#e2ddcf",
     thirdColor:     d?.thirdColor     ?? "#1a1916",
   });
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoPreview(URL.createObjectURL(file));
+    setLogoUploading(true);
+    try {
+      const blob = await upload(`brand/${Date.now()}-${file.name}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+      });
+      setLogoUrl(blob.url);
+    } finally {
+      setLogoUploading(false);
+      e.target.value = "";
+    }
+  }
 
   function toggle(arr: string[], set: (v: string[]) => void, item: string) {
     set(arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]);
@@ -70,6 +92,7 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
       displayFont:  fd.get("displayFont"),
       bodyFont:     fd.get("bodyFont"),
       ...colors,
+      logoUrl:   logoUrl || null,
       toneTags:  selectedTones,
       channels:  selectedChannels,
       languages: selectedLanguages,
@@ -214,14 +237,39 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
           </div>
 
           <Field label="Logo">
-            <div className="mt-1 flex h-20 w-full items-center justify-center rounded-md border border-dashed border-border bg-background text-xs text-muted-foreground cursor-pointer hover:bg-secondary transition-colors">
-              {d?.logoUrl ? (
+            <div
+              onClick={() => logoInputRef.current?.click()}
+              className="mt-1 relative flex h-24 w-full items-center justify-center rounded-md border border-dashed border-border bg-background text-xs text-muted-foreground cursor-pointer hover:bg-secondary transition-colors overflow-hidden"
+            >
+              {logoPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={d.logoUrl} alt="logo" className="h-full w-full object-contain p-2" />
+                <img src={logoPreview} alt="logo" className="h-full w-full object-contain p-2" />
               ) : (
                 <span>+ อัปโหลดโลโก้</span>
               )}
+              {logoUploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+                  <span className="h-4 w-4 rounded-full border-2 border-foreground/20 border-t-foreground animate-spin" />
+                </div>
+              )}
+              {logoPreview && !logoUploading && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setLogoUrl(""); setLogoPreview(""); }}
+                  className="absolute top-1 right-1 rounded-full bg-foreground/80 text-card w-5 h-5 text-xs flex items-center justify-center hover:bg-foreground"
+                >
+                  ×
+                </button>
+              )}
             </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoChange}
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">JPG, PNG, SVG · แนะนำ PNG พื้นหลังโปร่งใส</p>
           </Field>
         </Card>
 
