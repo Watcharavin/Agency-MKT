@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import Anthropic from "@anthropic-ai/sdk";
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -42,36 +43,23 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Write in Thai, keep each under 80 characters
 - Return only the 4 topics, one per line, no numbering, no extra text`;
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
-  }
+  const client = new Anthropic({
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKey: process.env.OPENROUTER_API_KEY,
+  });
 
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "anthropic/claude-haiku-4.5",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 300,
-      }),
+    const message = await client.messages.create({
+      model: "anthropic/claude-haiku-4.5",
+      max_tokens: 300,
+      messages: [{ role: "user", content: prompt }],
     });
 
-    const data = await res.json() as { choices?: { message?: { content?: string } }[]; error?: { message: string } };
-    if (!res.ok || data.error) {
-      const msg = data.error?.message ?? `HTTP ${res.status}`;
-      return NextResponse.json({ error: "AI generation failed", detail: msg }, { status: 500 });
-    }
-
-    const text = data.choices?.[0]?.message?.content ?? "";
+    const text = message.content[0].type === "text" ? message.content[0].text : "";
     const topics = text
       .split("\n")
-      .map((t: string) => t.trim())
-      .filter((t: string) => t.length > 0)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0)
       .slice(0, 4);
 
     return NextResponse.json({ topics });
