@@ -12,25 +12,51 @@ const CHANNEL_FORMAT: Record<string, string> = {
   TikTok:    "9:16 · 1080×1920",
 };
 
-type Phase = "idle" | "generating_text" | "review_text" | "generating_images" | "done";
+const CHANNELS = ["Facebook", "Instagram", "LINE", "TikTok"];
+const TONES = ["Educational", "Casual", "Professional", "Playful", "Inspirational", "Luxury"];
+const LANGUAGES = ["TH", "EN", "TH+EN"];
+const CAPTION_LENGTHS = ["Short", "Medium", "Long"];
+const FOOTER_STYLES = ["Full", "Shopee", "LINE", "Min", "ไม่ใส่"];
+const RATIOS = ["1:1", "16:9", "9:16", "4:5"];
+
+type Phase = "idle" | "generating_text" | "review_text" | "generating_images" | "done" | "editing";
 
 export function CampaignDetailClient({
-  campaign,
+  campaign: initialCampaign,
   initialAssets,
 }: {
   campaign: Campaign;
   initialAssets: GeneratedAsset[];
 }) {
   const router = useRouter();
+  const [campaign, setCampaign] = useState(initialCampaign);
   const [assets, setAssets] = useState<GeneratedAsset[]>(initialAssets);
   const [phase, setPhase] = useState<Phase>(initialAssets.length > 0 ? "done" : "idle");
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState<"caption" | "hashtags" | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Text fields (editable in review phase)
   const [caption, setCaption] = useState(assets.find((a) => a.type === "caption")?.textContent ?? "");
   const [hashtags, setHashtags] = useState(assets.find((a) => a.type === "hashtags")?.textContent ?? "");
+
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    topic: campaign.topic,
+    channel: campaign.channel,
+    brief: campaign.brief ?? "",
+    audience: campaign.audience ?? "",
+    tone: campaign.tone ?? "Educational",
+    language: campaign.language ?? "TH",
+    slideCount: campaign.slideCount ?? 3,
+    imageRatio: campaign.imageRatio ?? "1:1",
+    pillar: campaign.pillar ?? "",
+    goal: campaign.goal ?? "",
+    cta: campaign.cta ?? "",
+    captionLength: campaign.captionLength ?? "Medium",
+    footerStyle: campaign.footerStyle ?? "Full",
+  });
 
   // Image generation progress
   const [completedCount, setCompletedCount] = useState(0);
@@ -88,7 +114,6 @@ export function CampaignDetailClient({
       const { taskIds } = await startRes.json() as { taskIds: string[]; slideCount: number };
       setStatusText(`รอผล ${taskIds.length} สไลด์…`);
 
-      // Poll all tasks
       const MAX_POLLS = 60;
       const POLL_INTERVAL = 3000;
 
@@ -118,7 +143,6 @@ export function CampaignDetailClient({
       const imageUrls = (await Promise.all(taskIds.map(pollTask))).filter((u): u is string => !!u);
       setStatusText("บันทึกลง database…");
 
-      // Save assets (images + approved text)
       const saveRes = await fetch(`/api/campaigns/${campaign.id}/assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,7 +153,6 @@ export function CampaignDetailClient({
 
       setStatusText("เสร็จแล้ว!");
 
-      // Refresh assets
       const refreshRes = await fetch(`/api/campaigns/${campaign.id}`);
       if (refreshRes.ok) {
         const { assets: freshAssets } = await refreshRes.json();
@@ -138,9 +161,52 @@ export function CampaignDetailClient({
       setPhase("done");
     } catch (err) {
       setError(String(err));
-      setPhase("review_text"); // go back to review so user can retry
+      setPhase("review_text");
     } finally {
       setStatusText("");
+    }
+  }
+
+  // ─── Edit campaign ───
+  function handleStartEdit() {
+    setEditForm({
+      topic: campaign.topic,
+      channel: campaign.channel,
+      brief: campaign.brief ?? "",
+      audience: campaign.audience ?? "",
+      tone: campaign.tone ?? "Educational",
+      language: campaign.language ?? "TH",
+      slideCount: campaign.slideCount ?? 3,
+      imageRatio: campaign.imageRatio ?? "1:1",
+      pillar: campaign.pillar ?? "",
+      goal: campaign.goal ?? "",
+      cta: campaign.cta ?? "",
+      captionLength: campaign.captionLength ?? "Medium",
+      footerStyle: campaign.footerStyle ?? "Full",
+    });
+    setPhase("editing");
+    setError(null);
+  }
+
+  async function handleSaveEdit() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${campaign.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+
+      // Update local campaign state
+      setCampaign((prev) => ({ ...prev, ...editForm }));
+      setPhase(assets.length > 0 ? "done" : "idle");
+      router.refresh();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -153,7 +219,7 @@ export function CampaignDetailClient({
   }
 
   async function handleDelete() {
-    if (!confirm("ลบ campaign นี้?")) return;
+    if (!confirm("ลบ campaign นี้? ข้อมูลและรูปทั้งหมดจะหายไป")) return;
     setDeleting(true);
     await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
     router.push("/campaigns");
@@ -177,17 +243,209 @@ export function CampaignDetailClient({
   return (
     <div className="space-y-5">
 
+      {/* ═══ Phase: Editing campaign details ═══ */}
+      {phase === "editing" && (
+        <div className="rounded-lg border-2 border-primary/30 bg-card p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-foreground">แก้ไข Campaign</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Topic */}
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Topic</label>
+              <input
+                value={editForm.topic}
+                onChange={(e) => setEditForm((f) => ({ ...f, topic: e.target.value }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Channel */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Channel</label>
+              <select
+                value={editForm.channel}
+                onChange={(e) => setEditForm((f) => ({ ...f, channel: e.target.value as typeof f.channel }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch}</option>)}
+              </select>
+            </div>
+
+            {/* Tone */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Tone</label>
+              <select
+                value={editForm.tone}
+                onChange={(e) => setEditForm((f) => ({ ...f, tone: e.target.value }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {TONES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            {/* Language */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">ภาษา</label>
+              <select
+                value={editForm.language}
+                onChange={(e) => setEditForm((f) => ({ ...f, language: e.target.value }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+
+            {/* Slide Count */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">จำนวนสไลด์</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={editForm.slideCount}
+                onChange={(e) => setEditForm((f) => ({ ...f, slideCount: Number(e.target.value) }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Image Ratio */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">สัดส่วนรูป</label>
+              <select
+                value={editForm.imageRatio}
+                onChange={(e) => setEditForm((f) => ({ ...f, imageRatio: e.target.value }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {RATIOS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            {/* Caption Length */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">ความยาว Caption</label>
+              <select
+                value={editForm.captionLength}
+                onChange={(e) => setEditForm((f) => ({ ...f, captionLength: e.target.value }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {CAPTION_LENGTHS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            {/* Footer Style */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Footer</label>
+              <select
+                value={editForm.footerStyle}
+                onChange={(e) => setEditForm((f) => ({ ...f, footerStyle: e.target.value }))}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {FOOTER_STYLES.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+
+            {/* Pillar */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Content Pillar</label>
+              <input
+                value={editForm.pillar}
+                onChange={(e) => setEditForm((f) => ({ ...f, pillar: e.target.value }))}
+                placeholder="เช่น Awareness, Product, Promo"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Goal */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">เป้าหมาย</label>
+              <input
+                value={editForm.goal}
+                onChange={(e) => setEditForm((f) => ({ ...f, goal: e.target.value }))}
+                placeholder="เช่น Engagement, Reach, Sales"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Audience */}
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">กลุ่มเป้าหมาย</label>
+              <input
+                value={editForm.audience}
+                onChange={(e) => setEditForm((f) => ({ ...f, audience: e.target.value }))}
+                placeholder="เช่น ผู้หญิงวัย 25-35 สนใจแฟชั่น"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* CTA */}
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">CTA</label>
+              <input
+                value={editForm.cta}
+                onChange={(e) => setEditForm((f) => ({ ...f, cta: e.target.value }))}
+                placeholder="เช่น ช้อปเลย, สั่งซื้อวันนี้"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Brief */}
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Brief</label>
+              <textarea
+                value={editForm.brief}
+                onChange={(e) => setEditForm((f) => ({ ...f, brief: e.target.value }))}
+                rows={3}
+                placeholder="รายละเอียดเพิ่มเติม..."
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2 border-t border-border">
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving || !editForm.topic.trim()}
+              className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-card hover:opacity-80 transition-opacity disabled:opacity-40"
+            >
+              {saving ? "กำลังบันทึก…" : "บันทึก"}
+            </button>
+            <button
+              onClick={() => setPhase(assets.length > 0 ? "done" : "idle")}
+              className="rounded-md border border-border px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ═══ Phase: Done — show results ═══ */}
       {phase === "done" && slides.length > 0 && (
         <div className="space-y-4">
+          {/* Action bar */}
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-foreground">{slides.length} สไลด์ · {CHANNEL_FORMAT[campaign.channel] ?? campaign.channel}</p>
-            <button
-              onClick={handleRegenerate}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors"
-            >
-              ↺ Regenerate ทั้งหมด
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleStartEdit}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors"
+              >
+                แก้ไข
+              </button>
+              <button
+                onClick={handleRegenerate}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors"
+              >
+                ↺ Regenerate
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-md border border-red-200 bg-background px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+              >
+                {deleting ? "กำลังลบ…" : "ลบ"}
+              </button>
+            </div>
           </div>
 
           {/* Slides grid */}
@@ -263,7 +521,6 @@ export function CampaignDetailClient({
               <h3 className="text-sm font-semibold text-foreground">ตรวจสอบ & แก้ไขข้อความ</h3>
             </div>
 
-            {/* Editable Caption */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground">Caption</label>
               <textarea
@@ -274,7 +531,6 @@ export function CampaignDetailClient({
               />
             </div>
 
-            {/* Editable Hashtags */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground">Hashtags</label>
               <input
@@ -357,7 +613,6 @@ export function CampaignDetailClient({
             ))}
           </div>
 
-          {/* Show approved text while waiting */}
           {caption && (
             <div className="mt-4 text-left rounded-md border border-border bg-secondary/50 p-3">
               <p className="text-[10px] font-medium text-muted-foreground mb-1">Caption (อนุมัติแล้ว)</p>
@@ -375,26 +630,42 @@ export function CampaignDetailClient({
           <p className="text-xs text-muted-foreground">
             Step 1: AI เขียน caption + hashtags → Step 2: ตรวจสอบ & แก้ไข → Step 3: สร้างรูป {slideCount} สไลด์
           </p>
-          <button
-            onClick={handleGenerateText}
-            className="mt-2 rounded-md bg-foreground px-6 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
-          >
-            ▶ เริ่ม Generate
-          </button>
+          <div className="flex items-center justify-center gap-3 mt-2">
+            <button
+              onClick={handleGenerateText}
+              className="rounded-md bg-foreground px-6 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
+            >
+              ▶ เริ่ม Generate
+            </button>
+            <button
+              onClick={handleStartEdit}
+              className="rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              แก้ไข
+            </button>
+          </div>
           <p className="text-[10px] text-muted-foreground">AI เขียนข้อความ ~10 วิ · สร้างรูป ~2-3 นาที</p>
         </div>
       )}
 
-      {/* ═══ Phase: Done but no slides (text only was saved previously) ═══ */}
+      {/* ═══ Phase: Done but no slides ═══ */}
       {phase === "done" && slides.length === 0 && (
         <div className="rounded-lg border border-border bg-card p-10 text-center space-y-3">
           <p className="text-sm font-medium text-foreground">ยังไม่มีรูป</p>
-          <button
-            onClick={handleGenerateText}
-            className="mt-2 rounded-md bg-foreground px-6 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
-          >
-            ▶ เริ่ม Generate
-          </button>
+          <div className="flex items-center justify-center gap-3 mt-2">
+            <button
+              onClick={handleGenerateText}
+              className="rounded-md bg-foreground px-6 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
+            >
+              ▶ เริ่ม Generate
+            </button>
+            <button
+              onClick={handleStartEdit}
+              className="rounded-md border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              แก้ไข
+            </button>
+          </div>
         </div>
       )}
 
@@ -403,16 +674,18 @@ export function CampaignDetailClient({
         <p className="text-xs text-red-500 bg-red-50 rounded-md px-3 py-2">{error}</p>
       )}
 
-      {/* ── Delete ── */}
-      <div className="flex justify-end pt-2">
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-xs text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
-        >
-          {deleting ? "กำลังลบ…" : "ลบ Campaign นี้"}
-        </button>
-      </div>
+      {/* ── Bottom: Delete (only when not in done with action bar) ── */}
+      {phase !== "done" && phase !== "editing" && (
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="text-xs text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
+          >
+            {deleting ? "กำลังลบ…" : "ลบ Campaign นี้"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

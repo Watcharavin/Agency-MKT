@@ -52,8 +52,20 @@ export async function PATCH(
   const brandRows = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1);
   if (brandRows.length === 0) return NextResponse.json({ error: "Brand not found" }, { status: 404 });
 
+  // Build update object from allowed fields
+  const ALLOWED = [
+    "topic", "brief", "audience", "tone", "language",
+    "slideCount", "imageRatio", "pillar", "goal", "cta",
+    "captionLength", "footerStyle", "channel", "productId", "status",
+  ] as const;
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  for (const key of ALLOWED) {
+    if (key in body) updates[key] = body[key];
+  }
+
   await db.update(campaigns)
-    .set({ status: body.status, updatedAt: new Date() })
+    .set(updates)
     .where(and(eq(campaigns.id, id), eq(campaigns.brandId, brandRows[0].id)));
 
   return NextResponse.json({ ok: true });
