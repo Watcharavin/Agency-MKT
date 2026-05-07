@@ -50,6 +50,14 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const MAX_MB = 5;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setLogoError(`ไฟล์ใหญ่เกินไป (${(file.size / 1024 / 1024).toFixed(1)} MB) — สูงสุด ${MAX_MB} MB`);
+      e.target.value = "";
+      return;
+    }
+
     setLogoPreview(URL.createObjectURL(file));
     setLogoUploading(true);
     setLogoError(null);

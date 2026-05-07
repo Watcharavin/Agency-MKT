@@ -40,7 +40,17 @@ export function EditProductForm({ product }: { product: Product }) {
     }));
     setPhotos((prev) => [...prev, ...previews.map(({ _file: _, ...p }) => p)]);
 
+    const MAX_MB = 10;
     const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"];
+
+    const tooLarge = files.filter((f) => f.size > MAX_MB * 1024 * 1024);
+    if (tooLarge.length > 0) {
+      setUploadError(`ไฟล์ใหญ่เกินไป: ${tooLarge.map((f) => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`).join(", ")} — สูงสุด ${MAX_MB} MB`);
+      setPhotos((prev) => prev.filter((p) => p.url !== ""));
+      setUploading(false);
+      return;
+    }
+
     const blocked = files.filter((f) => !ALLOWED.includes(f.type));
     if (blocked.length > 0) {
       setUploadError(`ไฟล์ไม่รองรับ: ${blocked.map((f) => f.name).join(", ")} — ใช้ได้เฉพาะ JPG, PNG, WEBP, HEIC`);
