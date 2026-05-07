@@ -84,13 +84,31 @@ export function NewPlatformCampaignForm({
   const [language,      setLanguage]      = useState(defaultLang);
   const [cta,           setCta]           = useState("ไม่ระบุ");
   const [captionLength, setCaptionLength] = useState("Medium");
-  const [slideCount,    setSlideCount]    = useState(3);
-  const [imageRatio,    setImageRatio]    = useState("1:1");
+  const [slideRatios,   setSlideRatios]   = useState<string[]>(
+    Array.from({ length: 3 }, () => PLATFORM_RATIOS["Instagram"].default)
+  );
   const [footerStyle,   setFooterStyle]   = useState("Full");
+
+  const slideCount = slideRatios.length;
 
   function handlePlatformChange(p: string) {
     setPlatform(p);
-    setImageRatio(PLATFORM_RATIOS[p].default);
+    const newDefault = PLATFORM_RATIOS[p].default;
+    setSlideRatios((prev) => prev.map(() => newDefault));
+  }
+
+  function handleSetSlideCount(n: number) {
+    const currentDefault = PLATFORM_RATIOS[platform].default;
+    setSlideRatios((prev) => {
+      if (n > prev.length) {
+        return [...prev, ...Array.from({ length: n - prev.length }, () => currentDefault)];
+      }
+      return prev.slice(0, n);
+    });
+  }
+
+  function handleSlideRatio(index: number, ratio: string) {
+    setSlideRatios((prev) => prev.map((r, i) => (i === index ? ratio : r)));
   }
 
   async function handleSuggestTopic() {
@@ -121,7 +139,9 @@ export function NewPlatformCampaignForm({
           productId: productId || null,
           brief: brief.trim() || null,
           audience: audience.trim() || null,
-          tone, language, slideCount, imageRatio,
+          tone, language, slideCount,
+          imageRatio: slideRatios[0] ?? "1:1",
+          slideRatios,
           pillar, goal, cta, captionLength, footerStyle,
         }),
       });
@@ -299,31 +319,37 @@ export function NewPlatformCampaignForm({
         </Section>
 
         {/* 5. Images */}
-        <Section title="5. Images" desc="จำนวนและ ratio ของรูป">
-          <div className="grid grid-cols-2 gap-6">
-            <Field label="จำนวน Slides">
-              <div className="flex gap-2">
-                {SLIDE_COUNTS.map((n) => (
-                  <button key={n} type="button" onClick={() => setSlideCount(n)}
-                    className={cn("w-11 h-11 rounded-lg border text-sm font-medium transition-all",
-                      slideCount === n ? "border-foreground bg-foreground text-card" : "border-border bg-background text-foreground hover:border-foreground/40")}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </Field>
-            <Field label="Image Ratio" hint={`Default ของ ${platform}`}>
-              <div className="flex gap-2 flex-wrap">
-                {ratios.map((r) => (
-                  <button key={r} type="button" onClick={() => setImageRatio(r)}
-                    className={cn("rounded-lg border px-3 py-2 text-xs font-mono transition-all",
-                      imageRatio === r ? "border-foreground bg-foreground text-card" : "border-border bg-background text-foreground hover:border-foreground/40")}>
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </Field>
-          </div>
+        <Section title="5. Images" desc="จำนวนและ ratio ของรูป — เลือก ratio แต่ละรูปแยกได้">
+          <Field label="จำนวน Slides">
+            <div className="flex gap-2">
+              {SLIDE_COUNTS.map((n) => (
+                <button key={n} type="button" onClick={() => handleSetSlideCount(n)}
+                  className={cn("w-11 h-11 rounded-lg border text-sm font-medium transition-all",
+                    slideCount === n ? "border-foreground bg-foreground text-card" : "border-border bg-background text-foreground hover:border-foreground/40")}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Image Ratio แต่ละรูป" hint={`Default ของ ${platform}: ${PLATFORM_RATIOS[platform].default}`}>
+            <div className="space-y-2">
+              {slideRatios.map((ratio, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-[11px] font-mono text-muted-foreground w-12 shrink-0">รูป {i + 1}</span>
+                  <div className="flex gap-1.5">
+                    {ratios.map((r) => (
+                      <button key={r} type="button" onClick={() => handleSlideRatio(i, r)}
+                        className={cn("rounded-md border px-2.5 py-1.5 text-xs font-mono transition-all",
+                          ratio === r ? "border-foreground bg-foreground text-card" : "border-border bg-background text-foreground hover:border-foreground/40")}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Field>
         </Section>
 
       </div>
@@ -339,7 +365,7 @@ export function NewPlatformCampaignForm({
             <SRow label="Platform"  value={platform} />
             <SRow label="Pillar"    value={pillar    || "—"} warn={!pillar} />
             <SRow label="Goal"      value={goal      || "—"} warn={!goal} />
-            <SRow label="Ratio"     value={imageRatio} />
+            <SRow label="Ratio"     value={slideRatios.join(", ")} />
             <SRow label="Slides"    value={`${slideCount} slides`} />
             <SRow label="Caption"   value={captionLength} />
             <SRow label="CTA"       value={cta} />
