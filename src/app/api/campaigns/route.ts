@@ -12,22 +12,29 @@ export async function POST(req: NextRequest) {
   if (brand.length === 0) return NextResponse.json({ error: "Brand not found" }, { status: 404 });
 
   const body = await req.json();
-  const { channel, topic, productId, brief, tone, language, slideCount } = body;
+  const { channel, topic, productId, brief, audience, tone, language, slideCount, imageRatio, pillar, goal, cta, captionLength, footerStyle } = body;
 
   if (!channel || !topic) return NextResponse.json({ error: "channel and topic required" }, { status: 400 });
 
   const [campaign] = await db
     .insert(campaigns)
     .values({
-      brandId: brand[0].id,
+      brandId:       brand[0].id,
       channel,
       topic,
-      productId: productId ?? null,
-      brief: brief ?? null,
-      tone: tone ?? "Educational",
-      language: language ?? "TH",
-      slideCount: slideCount ?? 3,
-      status: "draft",
+      productId:     productId     ?? null,
+      brief:         brief         ?? null,
+      audience:      audience      ?? null,
+      tone:          tone          ?? "Educational",
+      language:      language      ?? "TH",
+      slideCount:    slideCount    ?? 3,
+      imageRatio:    imageRatio    ?? "1:1",
+      pillar:        pillar        ?? null,
+      goal:          goal          ?? null,
+      cta:           cta           ?? null,
+      captionLength: captionLength ?? "Medium",
+      footerStyle:   footerStyle   ?? "Full",
+      status:        "draft",
     })
     .returning({ id: campaigns.id });
 
