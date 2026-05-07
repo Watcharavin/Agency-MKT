@@ -48,7 +48,7 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
     const { text } = await generateText({
       model: gateway("anthropic/claude-haiku-4.5"),
       prompt,
-      maxTokens: 300,
+      maxOutputTokens: 300,
     });
 
     const topics = text
