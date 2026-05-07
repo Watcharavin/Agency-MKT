@@ -43,8 +43,9 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Return only the 4 topics, one per line, no numbering, no extra text`;
 
   const apiKey = process.env.OPENROUTER_API_KEY;
+  console.log("[suggest-topic] OPENROUTER_API_KEY present:", !!apiKey, "prefix:", apiKey?.slice(0, 8));
   if (!apiKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
+    return NextResponse.json({ error: "OPENROUTER_API_KEY not set", env_keys: Object.keys(process.env).filter(k => k.includes("OPEN") || k.includes("KEY") || k.includes("ROUTER")) }, { status: 500 });
   }
 
   try {
