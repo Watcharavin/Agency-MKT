@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       request: req,
       onBeforeGenerateToken: async (_pathname) => {
         return {
-          allowedContentTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+          allowedContentTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"],
           addRandomSuffix: true,
         };
       },

@@ -33,6 +33,15 @@ export function NewProductForm() {
     }));
     setPhotos((prev) => [...prev, ...previews.map(({ _file: _, ...p }) => p)]);
 
+    const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"];
+    const blocked = files.filter((f) => !ALLOWED.includes(f.type));
+    if (blocked.length > 0) {
+      setUploadError(`ไฟล์ไม่รองรับ: ${blocked.map((f) => f.name).join(", ")} — ใช้ได้เฉพาะ JPG, PNG, WEBP, HEIC`);
+      setPhotos((prev) => prev.filter((p) => p.url !== ""));
+      setUploading(false);
+      return;
+    }
+
     try {
       const results = await Promise.allSettled(
         files.map(async (file, i) => {
@@ -46,20 +55,20 @@ export function NewProductForm() {
       const succeeded = results
         .filter((r): r is PromiseFulfilledResult<{ blobUrl: string; preview: string }> => r.status === "fulfilled")
         .map((r) => r.value);
-      const failedPreviews = results
-        .map((r, i) => (r.status === "rejected" ? previews[i].preview : null))
-        .filter((p): p is string => p !== null);
+      const failed = results
+        .map((r, i) => (r.status === "rejected" ? { preview: previews[i].preview, name: files[i].name, reason: (r as PromiseRejectedResult).reason } : null))
+        .filter((x): x is { preview: string; name: string; reason: unknown } => x !== null);
 
       setPhotos((prev) =>
         prev
-          .filter((p) => !failedPreviews.includes(p.preview))
+          .filter((p) => !failed.map((f) => f.preview).includes(p.preview))
           .map((p) => {
             const match = succeeded.find((u) => u.preview === p.preview);
             return match ? { ...p, url: match.blobUrl } : p;
           })
       );
-      if (failedPreviews.length > 0) {
-        setUploadError(`อัปโหลดไม่สำเร็จ ${failedPreviews.length} ไฟล์ — ไฟล์อื่นอัปโหลดสำเร็จแล้ว`);
+      if (failed.length > 0) {
+        setUploadError(`อัปโหลดไม่สำเร็จ: ${failed.map((f) => f.name).join(", ")}`);
       }
     } catch (err) {
       setUploadError(String(err));
