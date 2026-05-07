@@ -12,6 +12,8 @@ const CHANNEL_FORMAT: Record<string, string> = {
   TikTok:    "9:16 · 1080×1920",
 };
 
+type Phase = "idle" | "generating_text" | "review_text" | "generating_images" | "done";
+
 export function CampaignDetailClient({
   campaign,
   initialAssets,
@@ -21,27 +23,57 @@ export function CampaignDetailClient({
 }) {
   const router = useRouter();
   const [assets, setAssets] = useState<GeneratedAsset[]>(initialAssets);
-  const [running, setRunning] = useState(false);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [statusText, setStatusText] = useState("");
+  const [phase, setPhase] = useState<Phase>(initialAssets.length > 0 ? "done" : "idle");
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState<"caption" | "hashtags" | null>(null);
 
-  const slides = assets.filter((a) => a.type === "slide").sort((a, b) => (a.slideIndex ?? 0) - (b.slideIndex ?? 0));
-  const caption = assets.find((a) => a.type === "caption")?.textContent ?? "";
-  const hashtags = assets.find((a) => a.type === "hashtags")?.textContent ?? "";
-  const slideCount = campaign.slideCount ?? 3;
-  const isGenerated = slides.length > 0;
+  // Text fields (editable in review phase)
+  const [caption, setCaption] = useState(assets.find((a) => a.type === "caption")?.textContent ?? "");
+  const [hashtags, setHashtags] = useState(assets.find((a) => a.type === "hashtags")?.textContent ?? "");
 
-  async function handleGenerate() {
-    setRunning(true);
+  // Image generation progress
+  const [completedCount, setCompletedCount] = useState(0);
+  const [statusText, setStatusText] = useState("");
+
+  const slides = assets.filter((a) => a.type === "slide").sort((a, b) => (a.slideIndex ?? 0) - (b.slideIndex ?? 0));
+  const slideCount = campaign.slideCount ?? 3;
+
+  // ─── Step 1: Generate Text (AI caption + footer + hashtags) ───
+  async function handleGenerateText() {
+    setPhase("generating_text");
+    setError(null);
+
+    try {
+      const res = await fetch("/api/generate/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignId: campaign.id }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to generate text");
+      }
+
+      const data = await res.json();
+      setCaption(data.caption ?? "");
+      setHashtags(data.hashtags ?? "");
+      setPhase("review_text");
+    } catch (err) {
+      setError(String(err));
+      setPhase("idle");
+    }
+  }
+
+  // ─── Step 2: Generate Images (KIE) after user approves text ───
+  async function handleGenerateImages() {
+    setPhase("generating_images");
     setError(null);
     setCompletedCount(0);
     setStatusText("กำลังสร้าง tasks…");
 
     try {
-      // Step 1: Start generation
       const startRes = await fetch("/api/generate/campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -50,20 +82,14 @@ export function CampaignDetailClient({
 
       if (!startRes.ok) {
         const err = await startRes.json();
-        throw new Error(err.error ?? "Failed to start generation");
+        throw new Error(err.error ?? "Failed to start image generation");
       }
 
-      const { taskIds, caption: newCaption, hashtags: newHashtags } = await startRes.json() as {
-        taskIds: string[];
-        caption: string;
-        hashtags: string;
-        slideCount: number;
-      };
-
+      const { taskIds } = await startRes.json() as { taskIds: string[]; slideCount: number };
       setStatusText(`รอผล ${taskIds.length} สไลด์…`);
 
-      // Step 2: Poll all tasks in parallel
-      const MAX_POLLS = 60; // 60 × 3s = 3 min
+      // Poll all tasks
+      const MAX_POLLS = 60;
       const POLL_INTERVAL = 3000;
 
       async function pollTask(taskId: string): Promise<string | null> {
@@ -90,32 +116,40 @@ export function CampaignDetailClient({
       }
 
       const imageUrls = (await Promise.all(taskIds.map(pollTask))).filter((u): u is string => !!u);
-
       setStatusText("บันทึกลง database…");
 
-      // Step 3: Save assets
+      // Save assets (images + approved text)
       const saveRes = await fetch(`/api/campaigns/${campaign.id}/assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrls, caption: newCaption, hashtags: newHashtags }),
+        body: JSON.stringify({ imageUrls, caption, hashtags }),
       });
 
       if (!saveRes.ok) throw new Error("Failed to save assets");
 
       setStatusText("เสร็จแล้ว!");
 
-      // Refresh assets from server
+      // Refresh assets
       const refreshRes = await fetch(`/api/campaigns/${campaign.id}`);
       if (refreshRes.ok) {
         const { assets: freshAssets } = await refreshRes.json();
         setAssets(freshAssets);
       }
+      setPhase("done");
     } catch (err) {
       setError(String(err));
+      setPhase("review_text"); // go back to review so user can retry
     } finally {
-      setRunning(false);
       setStatusText("");
     }
+  }
+
+  // ─── Full regenerate (start from step 1 again) ───
+  function handleRegenerate() {
+    setPhase("idle");
+    setCaption("");
+    setHashtags("");
+    setCompletedCount(0);
   }
 
   async function handleDelete() {
@@ -143,17 +177,16 @@ export function CampaignDetailClient({
   return (
     <div className="space-y-5">
 
-      {/* ── Generated slides ── */}
-      {isGenerated ? (
+      {/* ═══ Phase: Done — show results ═══ */}
+      {phase === "done" && slides.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-foreground">{slides.length} สไลด์ · {CHANNEL_FORMAT[campaign.channel] ?? campaign.channel}</p>
             <button
-              onClick={handleGenerate}
-              disabled={running}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors disabled:opacity-40"
+              onClick={handleRegenerate}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors"
             >
-              {running ? "กำลัง regenerate…" : "↺ Regenerate"}
+              ↺ Regenerate ทั้งหมด
             </button>
           </div>
 
@@ -168,15 +201,9 @@ export function CampaignDetailClient({
               <div key={slide.id} className="relative group rounded-lg overflow-hidden border border-border bg-secondary">
                 {slide.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={slide.imageUrl}
-                    alt={`Slide ${i + 1}`}
-                    className="w-full object-cover"
-                  />
+                  <img src={slide.imageUrl} alt={`Slide ${i + 1}`} className="w-full object-cover" />
                 ) : (
-                  <div className="aspect-square flex items-center justify-center text-muted-foreground text-xs">
-                    ไม่สำเร็จ
-                  </div>
+                  <div className="aspect-square flex items-center justify-center text-muted-foreground text-xs">ไม่สำเร็จ</div>
                 )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-end justify-between p-2 opacity-0 group-hover:opacity-100">
                   <span className="text-[10px] font-mono text-white">Slide {i + 1}</span>
@@ -193,7 +220,7 @@ export function CampaignDetailClient({
             ))}
           </div>
 
-          {/* Caption */}
+          {/* Caption (read-only) */}
           {caption && (
             <div className="rounded-lg border border-border bg-card p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -209,7 +236,7 @@ export function CampaignDetailClient({
             </div>
           )}
 
-          {/* Hashtags */}
+          {/* Hashtags (read-only) */}
           {hashtags && (
             <div className="rounded-lg border border-border bg-card p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -225,65 +252,155 @@ export function CampaignDetailClient({
             </div>
           )}
         </div>
-      ) : (
-        /* ── Not yet generated ── */
-        <div className="rounded-lg border border-border bg-card p-10 text-center space-y-3">
-          {running ? (
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-foreground">{statusText}</p>
-              <div className="max-w-xs mx-auto space-y-1.5">
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>กำลัง generate…</span>
-                  <span className="font-mono">{completedCount}/{slideCount}</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                  <div
-                    className="h-full bg-foreground rounded-full transition-all duration-700 ease-out"
-                    style={{ width: `${slideCount > 0 ? Math.round((completedCount / slideCount) * 100) : 0}%` }}
-                  />
-                </div>
-              </div>
+      )}
 
-              {/* Slide preview tiles */}
-              <div className="flex justify-center gap-2 mt-2">
-                {Array.from({ length: slideCount }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "w-14 h-14 rounded-md border flex items-center justify-center text-[10px] font-mono transition-all duration-500",
-                      completedCount > i
-                        ? "border-green-400 bg-green-50 text-green-600"
-                        : running
-                        ? "border-border animate-pulse bg-secondary text-muted-foreground"
-                        : "border-border bg-secondary text-muted-foreground"
-                    )}
-                  >
-                    {completedCount > i ? "✓" : `S${i + 1}`}
-                  </div>
-                ))}
-              </div>
+      {/* ═══ Phase: Review Text — editable caption/hashtags ═══ */}
+      {phase === "review_text" && (
+        <div className="space-y-4">
+          <div className="rounded-lg border-2 border-primary/30 bg-card p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-card text-xs font-bold">1</span>
+              <h3 className="text-sm font-semibold text-foreground">ตรวจสอบ & แก้ไขข้อความ</h3>
             </div>
-          ) : (
-            <>
-              <p className="text-2xl">◑</p>
-              <p className="text-sm font-medium text-foreground">รอ Generate</p>
-              <p className="text-xs text-muted-foreground">
-                AI สร้าง {slideCount} สไลด์ · caption · hashtags
-              </p>
-              <button
-                onClick={handleGenerate}
-                className="mt-2 rounded-md bg-foreground px-6 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
-              >
-                ▶ Generate Content
-              </button>
-              <p className="text-[10px] text-muted-foreground">~2–3 นาที · บันทึกอัตโนมัติ</p>
-            </>
-          )}
 
-          {error && (
-            <p className="text-xs text-red-500 bg-red-50 rounded-md px-3 py-2">{error}</p>
+            {/* Editable Caption */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Caption</label>
+              <textarea
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                rows={8}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+              />
+            </div>
+
+            {/* Editable Hashtags */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Hashtags</label>
+              <input
+                type="text"
+                value={hashtags}
+                onChange={(e) => setHashtags(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-primary font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={handleGenerateImages}
+                className="rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
+              >
+                ✓ อนุมัติ & สร้างรูป
+              </button>
+              <button
+                onClick={handleGenerateText}
+                className="rounded-md border border-border px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                ↺ สร้างข้อความใหม่
+              </button>
+              <button
+                onClick={() => setPhase("idle")}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-muted-foreground text-center">
+            แก้ไข caption และ hashtags ตามต้องการ แล้วกด &ldquo;อนุมัติ&rdquo; เพื่อให้ AI สร้างรูป {slideCount} สไลด์
+          </p>
+        </div>
+      )}
+
+      {/* ═══ Phase: Generating Text (loading) ═══ */}
+      {phase === "generating_text" && (
+        <div className="rounded-lg border border-border bg-card p-10 text-center space-y-3">
+          <div className="flex justify-center">
+            <div className="w-8 h-8 border-2 border-foreground/20 border-t-foreground rounded-full animate-spin" />
+          </div>
+          <p className="text-sm font-medium text-foreground">AI กำลังเขียน Caption & Hashtags…</p>
+          <p className="text-[10px] text-muted-foreground">ใช้เวลาไม่นาน ~5-10 วินาที</p>
+        </div>
+      )}
+
+      {/* ═══ Phase: Generating Images (progress) ═══ */}
+      {phase === "generating_images" && (
+        <div className="rounded-lg border border-border bg-card p-10 text-center space-y-4">
+          <p className="text-sm font-medium text-foreground">{statusText}</p>
+          <div className="max-w-xs mx-auto space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>กำลัง generate รูป…</span>
+              <span className="font-mono">{completedCount}/{slideCount}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full bg-foreground rounded-full transition-all duration-700 ease-out"
+                style={{ width: `${slideCount > 0 ? Math.round((completedCount / slideCount) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-2 mt-2">
+            {Array.from({ length: slideCount }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "w-14 h-14 rounded-md border flex items-center justify-center text-[10px] font-mono transition-all duration-500",
+                  completedCount > i
+                    ? "border-green-400 bg-green-50 text-green-600"
+                    : "border-border animate-pulse bg-secondary text-muted-foreground"
+                )}
+              >
+                {completedCount > i ? "✓" : `S${i + 1}`}
+              </div>
+            ))}
+          </div>
+
+          {/* Show approved text while waiting */}
+          {caption && (
+            <div className="mt-4 text-left rounded-md border border-border bg-secondary/50 p-3">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1">Caption (อนุมัติแล้ว)</p>
+              <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed line-clamp-4">{caption}</pre>
+            </div>
           )}
         </div>
+      )}
+
+      {/* ═══ Phase: Idle — initial state ═══ */}
+      {phase === "idle" && (
+        <div className="rounded-lg border border-border bg-card p-10 text-center space-y-3">
+          <p className="text-2xl">◑</p>
+          <p className="text-sm font-medium text-foreground">รอ Generate</p>
+          <p className="text-xs text-muted-foreground">
+            Step 1: AI เขียน caption + hashtags → Step 2: ตรวจสอบ & แก้ไข → Step 3: สร้างรูป {slideCount} สไลด์
+          </p>
+          <button
+            onClick={handleGenerateText}
+            className="mt-2 rounded-md bg-foreground px-6 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
+          >
+            ▶ เริ่ม Generate
+          </button>
+          <p className="text-[10px] text-muted-foreground">AI เขียนข้อความ ~10 วิ · สร้างรูป ~2-3 นาที</p>
+        </div>
+      )}
+
+      {/* ═══ Phase: Done but no slides (text only was saved previously) ═══ */}
+      {phase === "done" && slides.length === 0 && (
+        <div className="rounded-lg border border-border bg-card p-10 text-center space-y-3">
+          <p className="text-sm font-medium text-foreground">ยังไม่มีรูป</p>
+          <button
+            onClick={handleGenerateText}
+            className="mt-2 rounded-md bg-foreground px-6 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
+          >
+            ▶ เริ่ม Generate
+          </button>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <p className="text-xs text-red-500 bg-red-50 rounded-md px-3 py-2">{error}</p>
       )}
 
       {/* ── Delete ── */}

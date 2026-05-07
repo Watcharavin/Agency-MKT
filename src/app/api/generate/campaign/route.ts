@@ -50,41 +50,6 @@ function toPublicUrl(url: string): string {
   return url;
 }
 
-function buildCaption(
-  brand: { name?: string | null; tagline?: string | null },
-  campaign: { topic: string; brief?: string | null; language?: string | null }
-): string {
-  const isTH = !campaign.language || campaign.language.includes("TH");
-  const lines: string[] = [];
-  lines.push(campaign.topic);
-  if (campaign.brief) lines.push(campaign.brief);
-  if (brand.tagline) lines.push(`✨ ${brand.tagline}`);
-  lines.push(isTH
-    ? `\n📱 ติดตามเพิ่มเติมได้ที่ ${brand.name ?? ""}`
-    : `\n📱 Follow us at ${brand.name ?? ""}`
-  );
-  return lines.filter(Boolean).join("\n");
-}
-
-function buildHashtags(
-  brand: { name?: string | null },
-  campaign: { channel: string; topic: string; language?: string | null }
-): string {
-  const brandTag = brand.name ? `#${brand.name.replace(/\s+/g, "")}` : "";
-  const channelTags: Record<string, string[]> = {
-    Facebook:  ["#FacebookMarketing", "#SocialMedia"],
-    Instagram: ["#Instagram", "#Reels", "#Explore"],
-    LINE:      ["#LINEoa", "#LINEOA", "#LineMarketing"],
-    TikTok:    ["#TikTok", "#FYP", "#ForYouPage", "#TikTokMarketing"],
-  };
-  const isTH = !campaign.language || campaign.language.includes("TH");
-  const langTags = isTH
-    ? ["#ไทย", "#โปรโมชั่น", "#มาร์เก็ตติ้ง"]
-    : ["#Marketing", "#Brand", "#Promotion"];
-
-  return [brandTag, ...(channelTags[campaign.channel] ?? []), ...langTags].filter(Boolean).join(" ");
-}
-
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -165,15 +130,10 @@ export async function POST(req: NextRequest) {
       taskIds.push(taskId);
     } catch (err) {
       console.error(`[generate/campaign] slide ${i} failed:`, err);
-      // Roll back status
       await db.update(campaigns).set({ status: "draft", updatedAt: new Date() }).where(eq(campaigns.id, campaignId));
       return NextResponse.json({ error: String(err) }, { status: 500 });
     }
   }
 
-  // Generate caption + hashtags (template-based)
-  const caption = buildCaption(brand, campaign);
-  const hashtags = buildHashtags(brand, campaign);
-
-  return NextResponse.json({ ok: true, taskIds, caption, hashtags, slideCount });
+  return NextResponse.json({ ok: true, taskIds, slideCount });
 }
