@@ -55,13 +55,12 @@ export function CampaignDetailClient({
     audience: campaign.audience ?? "",
     tone: campaign.tone ?? "Educational",
     language: campaign.language ?? "TH",
-    slideCount: campaign.slideCount ?? 3,
-    imageRatio: campaign.imageRatio ?? "1:1",
     pillar: campaign.pillar ?? "",
     goal: campaign.goal ?? "",
     cta: campaign.cta ?? "",
     captionLength: campaign.captionLength ?? "Medium",
     footerStyle: campaign.footerStyle ?? "Full",
+    slideRatios: Array.from({ length: campaign.slideCount ?? 3 }, () => campaign.imageRatio ?? "1:1"),
   });
 
   // Image generation progress
@@ -182,13 +181,12 @@ export function CampaignDetailClient({
       audience: campaign.audience ?? "",
       tone: campaign.tone ?? "Educational",
       language: campaign.language ?? "TH",
-      slideCount: campaign.slideCount ?? 3,
-      imageRatio: campaign.imageRatio ?? "1:1",
       pillar: campaign.pillar ?? "",
       goal: campaign.goal ?? "",
       cta: campaign.cta ?? "",
       captionLength: campaign.captionLength ?? "Medium",
       footerStyle: campaign.footerStyle ?? "Full",
+      slideRatios: Array.from({ length: campaign.slideCount ?? 3 }, () => campaign.imageRatio ?? "1:1"),
     });
     setPhase("editing");
     setError(null);
@@ -198,15 +196,22 @@ export function CampaignDetailClient({
     setSaving(true);
     setError(null);
     try {
+      const { slideRatios: editRatios, ...rest } = editForm;
+      const payload = {
+        ...rest,
+        slideCount: editRatios.length,
+        imageRatio: editRatios[0] ?? "1:1",
+      };
       const res = await fetch(`/api/campaigns/${campaign.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to save");
 
-      // Update local campaign state
-      setCampaign((prev) => ({ ...prev, ...editForm }));
+      // Update local campaign state + sync slideRatios
+      setCampaign((prev) => ({ ...prev, ...payload }));
+      setSlideRatios(editRatios);
       setPhase(assets.length > 0 ? "done" : "idle");
       router.refresh();
     } catch (err) {
@@ -315,29 +320,68 @@ export function CampaignDetailClient({
               </select>
             </div>
 
-            {/* Slide Count */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">จำนวนสไลด์</label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={editForm.slideCount}
-                onChange={(e) => setEditForm((f) => ({ ...f, slideCount: Number(e.target.value) }))}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
+            {/* Slides & Per-slide Ratio */}
+            <div className="md:col-span-2 space-y-3">
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-medium text-muted-foreground">จำนวนสไลด์ & Ratio แต่ละรูป</label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() =>
+                        setEditForm((f) => {
+                          const prev = f.slideRatios;
+                          const defaultR = f.slideRatios[0] ?? "1:1";
+                          const next =
+                            n > prev.length
+                              ? [...prev, ...Array.from({ length: n - prev.length }, () => defaultR)]
+                              : prev.slice(0, n);
+                          return { ...f, slideRatios: next };
+                        })
+                      }
+                      className={cn(
+                        "w-8 h-8 rounded-md border text-xs font-medium transition-all",
+                        editForm.slideRatios.length === n
+                          ? "border-foreground bg-foreground text-card"
+                          : "border-border bg-background text-foreground hover:border-foreground/40"
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            {/* Image Ratio */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">สัดส่วนรูป</label>
-              <select
-                value={editForm.imageRatio}
-                onChange={(e) => setEditForm((f) => ({ ...f, imageRatio: e.target.value }))}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                {RATIOS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
+              <div className="space-y-2">
+                {editForm.slideRatios.map((ratio, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-muted-foreground w-14 shrink-0">รูป {i + 1}</span>
+                    <div className="flex gap-1">
+                      {RATIOS.map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() =>
+                            setEditForm((f) => ({
+                              ...f,
+                              slideRatios: f.slideRatios.map((sr, si) => (si === i ? r : sr)),
+                            }))
+                          }
+                          className={cn(
+                            "rounded-md border px-2.5 py-1 text-[11px] font-mono transition-all",
+                            ratio === r
+                              ? "bg-foreground text-card border-foreground"
+                              : "bg-background text-muted-foreground border-border hover:border-foreground/30"
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Caption Length */}
