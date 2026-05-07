@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { generateText } from "ai";
-import { openrouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -44,9 +44,14 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Write in Thai, keep each under 80 characters
 - Return only the 4 topics, one per line, no numbering, no extra text`;
 
+  const or = createOpenAI({
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKey: process.env.OPENROUTER_API_KEY ?? "",
+  });
+
   try {
     const { text } = await generateText({
-      model: openrouter("anthropic/claude-haiku-4.5"),
+      model: or("anthropic/claude-haiku-4.5"),
       prompt,
       maxOutputTokens: 300,
     });
