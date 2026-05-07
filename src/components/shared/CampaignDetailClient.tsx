@@ -41,6 +41,12 @@ export function CampaignDetailClient({
   const [caption, setCaption] = useState(assets.find((a) => a.type === "caption")?.textContent ?? "");
   const [hashtags, setHashtags] = useState(assets.find((a) => a.type === "hashtags")?.textContent ?? "");
 
+  // Per-slide image config
+  const defaultRatio = campaign.imageRatio ?? "1:1";
+  const [slideRatios, setSlideRatios] = useState<string[]>(
+    Array.from({ length: campaign.slideCount ?? 3 }, () => defaultRatio)
+  );
+
   // Edit form state
   const [editForm, setEditForm] = useState({
     topic: campaign.topic,
@@ -63,7 +69,7 @@ export function CampaignDetailClient({
   const [statusText, setStatusText] = useState("");
 
   const slides = assets.filter((a) => a.type === "slide").sort((a, b) => (a.slideIndex ?? 0) - (b.slideIndex ?? 0));
-  const slideCount = campaign.slideCount ?? 3;
+  const slideCount = slideRatios.length;
 
   // ─── Step 1: Generate Text (AI caption + footer + hashtags) ───
   async function handleGenerateText() {
@@ -103,7 +109,7 @@ export function CampaignDetailClient({
       const startRes = await fetch("/api/generate/campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId: campaign.id }),
+        body: JSON.stringify({ campaignId: campaign.id, slideRatios }),
       });
 
       if (!startRes.ok) {
@@ -208,6 +214,20 @@ export function CampaignDetailClient({
     } finally {
       setSaving(false);
     }
+  }
+
+  // ─── Slide config helpers ───
+  function addSlide() {
+    setSlideRatios((prev) => [...prev, defaultRatio]);
+  }
+
+  function removeSlide(index: number) {
+    if (slideRatios.length <= 1) return;
+    setSlideRatios((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateSlideRatio(index: number, ratio: string) {
+    setSlideRatios((prev) => prev.map((r, i) => (i === index ? ratio : r)));
   }
 
   // ─── Full regenerate (start from step 1 again) ───
@@ -541,12 +561,61 @@ export function CampaignDetailClient({
               />
             </div>
 
+            {/* ── Image config: slide count + per-slide ratio ── */}
+            <div className="border-t border-border pt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-card text-xs font-bold">2</span>
+                <h3 className="text-sm font-semibold text-foreground">ตั้งค่ารูปภาพ</h3>
+                <span className="text-[10px] text-muted-foreground">({slideRatios.length} รูป)</span>
+              </div>
+
+              <div className="space-y-2">
+                {slideRatios.map((ratio, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-muted-foreground w-14">รูป {i + 1}</span>
+                    <div className="flex gap-1">
+                      {RATIOS.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => updateSlideRatio(i, r)}
+                          className={cn(
+                            "rounded-md px-2.5 py-1 text-[11px] font-mono border transition-colors",
+                            ratio === r
+                              ? "bg-foreground text-card border-foreground"
+                              : "bg-background text-muted-foreground border-border hover:border-foreground/30"
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                    {slideRatios.length > 1 && (
+                      <button
+                        onClick={() => removeSlide(i)}
+                        className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors ml-1"
+                        title="ลบรูปนี้"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={addSlide}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border rounded-md px-3 py-1.5 hover:border-foreground/30"
+              >
+                + เพิ่มรูป
+              </button>
+            </div>
+
             <div className="flex items-center gap-3 pt-2">
               <button
                 onClick={handleGenerateImages}
                 className="rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-card hover:opacity-80 transition-opacity"
               >
-                ✓ อนุมัติ & สร้างรูป
+                ✓ อนุมัติ & สร้างรูป ({slideRatios.length} รูป)
               </button>
               <button
                 onClick={handleGenerateText}
@@ -564,7 +633,7 @@ export function CampaignDetailClient({
           </div>
 
           <p className="text-[10px] text-muted-foreground text-center">
-            แก้ไข caption และ hashtags ตามต้องการ แล้วกด &ldquo;อนุมัติ&rdquo; เพื่อให้ AI สร้างรูป {slideCount} สไลด์
+            เลือก ratio แต่ละรูป แล้วกด &ldquo;อนุมัติ&rdquo; เพื่อให้ AI สร้างรูป {slideRatios.length} รูป
           </p>
         </div>
       )}

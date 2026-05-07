@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { campaignId } = body;
+  const { campaignId, slideRatios } = body as { campaignId: string; slideRatios?: string[] };
   if (!campaignId) return NextResponse.json({ error: "campaignId required" }, { status: 400 });
 
   // Fetch brand DNA
@@ -97,9 +97,9 @@ export async function POST(req: NextRequest) {
     return logoUrl ? [logoUrl, ...urls] : urls;
   }
 
-  const aspectRatio = CHANNEL_ASPECT[campaign.channel] ?? "1:1";
+  const defaultRatio = CHANNEL_ASPECT[campaign.channel] ?? "1:1";
   const toneStr = [campaign.tone, ...((brand.toneTags as string[]) ?? [])].filter(Boolean).join(", ");
-  const slideCount = campaign.slideCount ?? 3;
+  const slideCount = slideRatios?.length ?? campaign.slideCount ?? 3;
 
   const basePrompt = [
     `Social media ${campaign.channel} carousel post. Topic: ${campaign.topic}.`,
@@ -124,9 +124,10 @@ export async function POST(req: NextRequest) {
   // Create one KIE task per slide
   const taskIds: string[] = [];
   for (let i = 0; i < slideCount; i++) {
-    const slidePrompt = `${basePrompt} Slide ${i + 1} of ${slideCount}${i === 0 ? " — hero/cover slide" : i === slideCount - 1 ? " — CTA/closing slide" : ""}.`;
+    const slideRatio = slideRatios?.[i] ?? defaultRatio;
+    const slidePrompt = `${basePrompt} Slide ${i + 1} of ${slideCount}${i === 0 ? " — hero/cover slide" : i === slideCount - 1 ? " — CTA/closing slide" : ""}. Aspect ratio: ${slideRatio}`;
     try {
-      const taskId = await createKieTask(inputUrls, slidePrompt, aspectRatio);
+      const taskId = await createKieTask(inputUrls, slidePrompt, slideRatio);
       taskIds.push(taskId);
     } catch (err) {
       console.error(`[generate/campaign] slide ${i} failed:`, err);
