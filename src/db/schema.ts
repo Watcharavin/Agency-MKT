@@ -24,16 +24,8 @@ export const brands = pgTable("brands", {
   dontSay:       text("dont_say"),
   displayFont:   text("display_font").default("Inter"),
   bodyFont:      text("body_font").default("Inter"),
-  socialLinks:   jsonb("social_links").$type<{
-    facebook?:   string;
-    instagram?:  string;
-    tiktok?:     string;
-    tiktokShop?: string;
-    line?:       string;
-    lineUrl?:    string;
-    shopee?:     string;
-    phone?:      string;
-  }>().default({}),
+  // socialLinks — added in schema, pending DB migration via Neon dashboard
+  // ALTER TABLE brands ADD COLUMN social_links jsonb DEFAULT '{}';
   createdAt:     timestamp("created_at").defaultNow(),
   updatedAt:     timestamp("updated_at").defaultNow(),
 });
@@ -60,16 +52,17 @@ export const campaigns = pgTable("campaigns", {
   channel:       channelEnum("channel").notNull(),
   topic:         text("topic").notNull(),
   brief:         text("brief"),
-  audience:      text("audience"),                   // override brand audience
   tone:          text("tone").default("Educational"),
   language:      text("language").default("TH"),
   slideCount:    integer("slide_count").default(3),
-  imageRatio:    text("image_ratio").default("1:1"), // e.g. "1:1", "4:5", "9:16", "16:9"
-  pillar:        text("pillar"),                     // Knowledge, Product, Brand, Promotion, Others
-  goal:          text("goal"),                       // Awareness, Engagement, Conversion, Retention
-  cta:           text("cta"),                        // DM, LinkInBio, Comment, Save, None
-  captionLength: text("caption_length").default("Medium"), // Short, Medium, Long
-  footerStyle:   text("footer_style").default("Full"),     // Full, Shopee, LINE, Minimal, None
+  // New fields pending DB migration via Neon dashboard:
+  // ALTER TABLE campaigns ADD COLUMN audience text;
+  // ALTER TABLE campaigns ADD COLUMN image_ratio text DEFAULT '1:1';
+  // ALTER TABLE campaigns ADD COLUMN pillar text;
+  // ALTER TABLE campaigns ADD COLUMN goal text;
+  // ALTER TABLE campaigns ADD COLUMN cta text;
+  // ALTER TABLE campaigns ADD COLUMN caption_length text DEFAULT 'Medium';
+  // ALTER TABLE campaigns ADD COLUMN footer_style text DEFAULT 'Full';
   status:        campaignStatusEnum("status").default("draft"),
   scheduledAt:   timestamp("scheduled_at"),          // for Content Calendar
   createdAt:     timestamp("created_at").defaultNow(),
