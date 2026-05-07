@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { generateText } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { openrouter } from "@openrouter/ai-sdk-provider";
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -43,8 +43,6 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Suitable for ${platform} ${pillar} content with ${goal} goal
 - Write in Thai, keep each under 80 characters
 - Return only the 4 topics, one per line, no numbering, no extra text`;
-
-  const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY });
 
   try {
     const { text } = await generateText({
