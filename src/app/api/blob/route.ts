@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
     const res = await fetch(blobUrl, {
       headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
     });
-    return new NextResponse(res.body, {
+    const buffer = await res.arrayBuffer();
+    return new NextResponse(buffer, {
       headers: {
         "Content-Type": info.contentType,
         "Cache-Control": "private, max-age=3600",

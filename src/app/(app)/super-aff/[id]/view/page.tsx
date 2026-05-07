@@ -29,6 +29,14 @@ function StatusBadge({ status }: { status: string }) {
 const SALMON = "linear-gradient(135deg, #fce8e4 0%, #f8d8d2 100%)";
 const STRIPE = "repeating-linear-gradient(135deg, #e8e4da, #e8e4da 10px, #ede9e0 10px, #ede9e0 20px)";
 
+// Private Vercel Blob URLs cannot be fetched by the browser directly — proxy through /api/blob
+function blobProxy(url: string): string {
+  if (url.includes("blob.vercel-storage.com")) {
+    return `/api/blob?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 export default async function VoucherDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
@@ -110,7 +118,7 @@ export default async function VoucherDetailPage({ params }: { params: Promise<{ 
             <div className="relative rounded-xl overflow-hidden aspect-square">
               {voucher.coverImageUrl ? (
                 <>
-                  <img src={voucher.coverImageUrl} alt="Voucher Cover" className="w-full h-full object-cover" />
+                  <img src={blobProxy(voucher.coverImageUrl)} alt="Voucher Cover" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
                     <DownloadButton imageUrl={voucher.coverImageUrl} filename={`${voucher.name}-cover.jpg`} />
                   </div>
@@ -135,7 +143,7 @@ export default async function VoucherDetailPage({ params }: { params: Promise<{ 
             <div className="relative rounded-xl overflow-hidden aspect-square">
               {voucher.mergedImageUrl ? (
                 <>
-                  <img src={voucher.mergedImageUrl} alt="Collection" className="w-full h-full object-cover" />
+                  <img src={blobProxy(voucher.mergedImageUrl)} alt="Collection" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
                     <DownloadButton imageUrl={voucher.mergedImageUrl} filename={`${voucher.name}-collection.jpg`} />
                   </div>
@@ -170,7 +178,7 @@ export default async function VoucherDetailPage({ params }: { params: Promise<{ 
                 <div className="relative aspect-square group">
                   {c.imageUrl ? (
                     <>
-                      <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" />
+                      <img src={blobProxy(c.imageUrl)} alt={c.name} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <DownloadButton imageUrl={c.imageUrl} filename={`coupon-${i + 1}-${c.name}.jpg`} size="sm" />
                       </div>

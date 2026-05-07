@@ -6,6 +6,13 @@ import { brands, voucherCollections, coupons } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { DownloadButton } from "@/components/shared/DownloadButton";
 
+function blobProxy(url: string): string {
+  if (url.includes("blob.vercel-storage.com")) {
+    return `/api/blob?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 export default async function VoucherResultPage({
   params,
 }: {
@@ -144,7 +151,7 @@ function ImageCard({
       <div className="relative rounded-xl overflow-hidden aspect-square group">
         {imageUrl ? (
           <>
-            <img src={imageUrl} alt={label} className="w-full h-full object-contain bg-zinc-50" />
+            <img src={blobProxy(imageUrl)} alt={label} className="w-full h-full object-contain bg-zinc-50" />
             {/* Download overlay on hover */}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <DownloadButton imageUrl={imageUrl} filename={filename} />
@@ -206,7 +213,7 @@ function CouponCard({
       >
         {imageUrl ? (
           <>
-            <img src={imageUrl} alt={name} className="w-full h-full object-contain bg-zinc-50" />
+            <img src={blobProxy(imageUrl)} alt={name} className="w-full h-full object-contain bg-zinc-50" />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <DownloadButton imageUrl={imageUrl} filename={filename} size="sm" />
             </div>
