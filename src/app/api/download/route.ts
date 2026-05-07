@@ -8,7 +8,12 @@ export async function GET(req: NextRequest) {
   if (!url) return new NextResponse("Missing url", { status: 400 });
 
   try {
-    const res = await fetch(url);
+    const isPrivateBlob = url.includes("blob.vercel-storage.com");
+    const headers: HeadersInit = isPrivateBlob && process.env.BLOB_READ_WRITE_TOKEN
+      ? { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+      : {};
+
+    const res = await fetch(url, { headers });
     if (!res.ok) return new NextResponse("Not found", { status: 404 });
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
     const buffer = await res.arrayBuffer();
@@ -16,7 +21,7 @@ export async function GET(req: NextRequest) {
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": 'attachment; filename="' + name + '"',
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": "private, max-age=3600",
       },
     });
   } catch (err) {
