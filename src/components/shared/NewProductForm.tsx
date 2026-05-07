@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { upload } from "@vercel/blob/client";
 
 const CATEGORIES = ["Skincare", "Makeup", "Haircare", "Supplement", "Food & Drink", "Fashion", "Accessory", "Home", "Other"];
 
@@ -33,7 +32,7 @@ export function NewProductForm() {
     }));
     setPhotos((prev) => [...prev, ...previews.map(({ _file: _, ...p }) => p)]);
 
-    const MAX_MB = 10;
+    const MAX_MB = 4;
     const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"];
 
     const tooLarge = files.filter((f) => f.size > MAX_MB * 1024 * 1024);
@@ -55,11 +54,12 @@ export function NewProductForm() {
     try {
       const results = await Promise.allSettled(
         files.map(async (file, i) => {
-          const blob = await upload(`products/${Date.now()}-${file.name}`, file, {
-            access: "private",
-            handleUploadUrl: "/api/products/upload",
-          });
-          return { blobUrl: blob.url, preview: previews[i].preview };
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/products/upload-file", { method: "POST", body: fd });
+          if (!res.ok) throw new Error(await res.text());
+          const { url } = await res.json();
+          return { blobUrl: url as string, preview: previews[i].preview };
         })
       );
       const succeeded = results
