@@ -29,6 +29,13 @@ const STRIPE = "repeating-linear-gradient(135deg, #e8e4da, #e8e4da 10px, #ede9e0
 const SALMON = "linear-gradient(135deg, #fce8e4 0%, #f8d8d2 100%)";
 const SALMON_LIGHT = "linear-gradient(135deg, #fdf2f0 0%, #fae6e1 100%)";
 
+function blobProxy(url: string): string {
+  if (url.includes("blob.vercel-storage.com")) {
+    return `/api/blob?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 export default async function SuperAffPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
@@ -93,7 +100,7 @@ export default async function SuperAffPage() {
                   <div className="grid grid-cols-2">
                     <div className="aspect-square overflow-hidden border-r border-border/60">
                       {v.coverImageUrl
-                        ? <img src={v.coverImageUrl} alt="cover" className="w-full h-full object-cover" />
+                        ? <img src={blobProxy(v.coverImageUrl)} alt="cover" className="w-full h-full object-cover" />
                         : <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON }}>
                             <span className="text-[9px] font-mono tracking-widest" style={{ color: "#c4614e" }}>VOUCHER</span>
                           </div>
@@ -101,7 +108,7 @@ export default async function SuperAffPage() {
                     </div>
                     <div className="aspect-square overflow-hidden">
                       {v.mergedImageUrl
-                        ? <img src={v.mergedImageUrl} alt="collection" className="w-full h-full object-cover" />
+                        ? <img src={blobProxy(v.mergedImageUrl)} alt="collection" className="w-full h-full object-cover" />
                         : <div className="w-full h-full flex items-center justify-center" style={{ background: SALMON_LIGHT }}>
                             <span className="text-[9px] font-mono tracking-widest" style={{ color: "#d4917e" }}>COLLECTION</span>
                           </div>
@@ -113,7 +120,7 @@ export default async function SuperAffPage() {
                   <div className="grid grid-cols-2 border-t border-border/60">
                     <div className="aspect-square overflow-hidden border-r border-border/60 relative">
                       {firstImageUrl
-                        ? <img src={firstImageUrl} alt="c1" className="w-full h-full object-cover" />
+                        ? <img src={blobProxy(firstImageUrl)} alt="c1" className="w-full h-full object-cover" />
                         : <div className="w-full h-full" style={{ background: STRIPE }}>
                             <span className="absolute top-2 left-2 text-[9px] font-mono text-zinc-400">c1</span>
                           </div>
