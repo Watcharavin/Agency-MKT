@@ -40,7 +40,7 @@ export function EditProductForm({ product }: { product: Product }) {
     setPhotos((prev) => [...prev, ...previews.map(({ _file: _, ...p }) => p)]);
 
     const MAX_MB = 4;
-    const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"];
+    const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 
     const tooLarge = files.filter((f) => f.size > MAX_MB * 1024 * 1024);
     if (tooLarge.length > 0) {
@@ -52,7 +52,7 @@ export function EditProductForm({ product }: { product: Product }) {
 
     const blocked = files.filter((f) => !ALLOWED.includes(f.type));
     if (blocked.length > 0) {
-      setUploadError(`ไฟล์ไม่รองรับ: ${blocked.map((f) => f.name).join(", ")} — ใช้ได้เฉพาะ JPG, PNG, WEBP, HEIC`);
+      setUploadError(`ไฟล์ไม่รองรับ: ${blocked.map((f) => f.name).join(", ")} — ใช้ได้เฉพาะ JPG, PNG, WEBP (KIE AI ต้องการ)`);
       setPhotos((prev) => prev.filter((p) => p.url !== ""));
       setUploading(false);
       return;

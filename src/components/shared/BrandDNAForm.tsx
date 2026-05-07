@@ -51,7 +51,14 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const MAX_MB = 5;
+    const ALLOWED_LOGO = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (!ALLOWED_LOGO.includes(file.type)) {
+      setLogoError(`ไฟล์ไม่รองรับ (${file.type}) — ใช้ได้เฉพาะ JPG, PNG, WEBP`);
+      e.target.value = "";
+      return;
+    }
+
+    const MAX_MB = 4;
     if (file.size > MAX_MB * 1024 * 1024) {
       setLogoError(`ไฟล์ใหญ่เกินไป (${(file.size / 1024 / 1024).toFixed(1)} MB) — สูงสุด ${MAX_MB} MB`);
       e.target.value = "";
