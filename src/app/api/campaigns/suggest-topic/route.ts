@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { generateText } from "ai";
-import { gateway } from "@ai-sdk/gateway";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -44,11 +44,13 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Write in Thai, keep each under 80 characters
 - Return only the 4 topics, one per line, no numbering, no extra text`;
 
+  const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY });
+
   try {
     const { text } = await generateText({
-      model: gateway("anthropic/claude-haiku-4.5"),
+      model: openrouter("anthropic/claude-haiku-4.5"),
       prompt,
-      maxOutputTokens: 300,
+      maxTokens: 300,
     });
 
     const topics = text
@@ -58,7 +60,9 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
       .slice(0, 4);
 
     return NextResponse.json({ topics });
-  } catch {
-    return NextResponse.json({ error: "AI generation failed" }, { status: 500 });
+  } catch (err) {
+    console.error("[suggest-topic] AI error:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: "AI generation failed", detail: msg }, { status: 500 });
   }
 }
