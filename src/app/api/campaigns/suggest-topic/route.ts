@@ -43,9 +43,12 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Write in Thai, keep each under 80 characters
 - Return only the 4 topics, one per line, no numbering, no extra text`;
 
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  console.log("[suggest-topic] OPENROUTER_API_KEY present:", !!apiKey, "length:", apiKey?.length ?? 0);
+
   const client = new Anthropic({
     baseURL: "https://openrouter.ai/api/v1",
-    apiKey: process.env.OPENROUTER_API_KEY,
+    apiKey: apiKey ?? "missing",
   });
 
   try {
