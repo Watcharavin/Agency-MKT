@@ -19,6 +19,17 @@ const FONT_OPTIONS = [
 
 type ColorKey = "primaryColor" | "secondaryColor" | "thirdColor";
 
+type SocialLinks = {
+  facebook?: string;
+  instagram?: string;
+  tiktok?: string;
+  tiktokShop?: string;
+  line?: string;
+  lineUrl?: string;
+  shopee?: string;
+  phone?: string;
+};
+
 const COLOR_META: { key: ColorKey; label: string }[] = [
   { key: "primaryColor",   label: "Primary"   },
   { key: "secondaryColor", label: "Secondary" },
@@ -32,6 +43,9 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
 
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
+  const [socialLinks, setSocialLinks] = useState<SocialLinks>(
+    (d?.socialLinks as SocialLinks) ?? {}
+  );
   const [logoUrl,      setLogoUrl]      = useState<string>(d?.logoUrl ?? "");
   const [logoPreview,  setLogoPreview]  = useState<string>(
     d?.logoUrl ? `/api/blob?url=${encodeURIComponent(d.logoUrl)}` : ""
@@ -102,6 +116,7 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
     setLogoUrl(d?.logoUrl ?? "");
     setLogoPreview(d?.logoUrl ? `/api/blob?url=${encodeURIComponent(d.logoUrl)}` : "");
     setLogoError(null);
+    setSocialLinks((d?.socialLinks as SocialLinks) ?? {});
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -118,10 +133,11 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
       displayFont:  fd.get("displayFont"),
       bodyFont:     fd.get("bodyFont"),
       ...colors,
-      logoUrl:   logoUrl || null,
-      toneTags:  selectedTones,
-      channels:  selectedChannels,
-      languages: selectedLanguages,
+      logoUrl:      logoUrl || null,
+      toneTags:     selectedTones,
+      channels:     selectedChannels,
+      languages:    selectedLanguages,
+      socialLinks,
     };
     try {
       const res = await fetch("/api/brand", {
@@ -397,6 +413,62 @@ export function BrandDNAForm({ initialData }: { initialData: Brand | null }) {
           </Field>
         </Card>
 
+        {/* ── Card 5: Social Links (full width) ── */}
+        <div className="col-span-2">
+          <Card title="Social Links & Shop" desc="ลิงก์และช่องทางติดต่อ — AI จะ append footer ให้ทุก caption อัตโนมัติ">
+            <div className="grid grid-cols-2 gap-4">
+              <SocialField
+                label="Facebook Page"
+                placeholder="เช่น Shoza Cosmetics Thailand"
+                value={socialLinks.facebook ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, facebook: v }))}
+              />
+              <SocialField
+                label="Instagram"
+                placeholder="เช่น shoza.cosmetics"
+                value={socialLinks.instagram ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, instagram: v }))}
+              />
+              <SocialField
+                label="TikTok URL"
+                placeholder="เช่น https://vt.tiktok.com/..."
+                value={socialLinks.tiktok ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, tiktok: v }))}
+              />
+              <SocialField
+                label="TikTok Shop URL"
+                placeholder="เช่น https://s.tiktok.com/..."
+                value={socialLinks.tiktokShop ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, tiktokShop: v }))}
+              />
+              <SocialField
+                label="LINE OA ID"
+                placeholder="เช่น @shoza.cosmetics"
+                value={socialLinks.line ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, line: v }))}
+              />
+              <SocialField
+                label="LINE URL"
+                placeholder="เช่น https://lin.ee/..."
+                value={socialLinks.lineUrl ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, lineUrl: v }))}
+              />
+              <SocialField
+                label="Shopee URL"
+                placeholder="เช่น https://s.shopee.co.th/..."
+                value={socialLinks.shopee ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, shopee: v }))}
+              />
+              <SocialField
+                label="เบอร์โทรศัพท์"
+                placeholder="เช่น 081-691-4598"
+                value={socialLinks.phone ?? ""}
+                onChange={(v) => setSocialLinks((p) => ({ ...p, phone: v }))}
+              />
+            </div>
+          </Card>
+        </div>
+
       </div>
     </form>
   );
@@ -433,6 +505,22 @@ function Field({
       </label>
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
       {children}
+    </div>
+  );
+}
+
+function SocialField({ label, placeholder, value, onChange }: {
+  label: string; placeholder: string; value: string; onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-xs font-medium text-foreground">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={inputCls}
+      />
     </div>
   );
 }

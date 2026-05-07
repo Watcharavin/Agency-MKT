@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { name, tagline, about, audience, primaryColor, secondaryColor, thirdColor, logoUrl, toneTags, channels, languages, doSay, dontSay, displayFont, bodyFont } = body;
+  const { name, tagline, about, audience, primaryColor, secondaryColor, thirdColor, logoUrl, toneTags, channels, languages, doSay, dontSay, displayFont, bodyFont, socialLinks } = body;
 
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
 
@@ -23,13 +23,14 @@ export async function POST(req: NextRequest) {
   if (existing.length > 0) {
     await db
       .update(brands)
-      .set({ name, tagline, about, audience, primaryColor, secondaryColor, thirdColor, logoUrl: logoUrl ?? null, toneTags, channels, languages, doSay, dontSay, displayFont, bodyFont, updatedAt: new Date() })
+      .set({ name, tagline, about, audience, primaryColor, secondaryColor, thirdColor, logoUrl: logoUrl ?? null, toneTags, channels, languages, doSay, dontSay, displayFont, bodyFont, socialLinks: socialLinks ?? {}, updatedAt: new Date() })
       .where(eq(brands.userId, userId));
   } else {
     await db.insert(brands).values({
       userId, name, tagline, about, audience,
       primaryColor, secondaryColor, thirdColor, logoUrl: logoUrl ?? null,
       toneTags, channels, languages, doSay, dontSay, displayFont, bodyFont,
+      socialLinks: socialLinks ?? {},
     });
   }
 
