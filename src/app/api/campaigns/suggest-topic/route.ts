@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -44,25 +43,36 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Return only the 4 topics, one per line, no numbering, no extra text`;
 
   const apiKey = process.env.OPENROUTER_API_KEY;
-  console.log("[suggest-topic] OPENROUTER_API_KEY present:", !!apiKey, "length:", apiKey?.length ?? 0);
-
-  const client = new Anthropic({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: apiKey ?? "missing",
-  });
+  if (!apiKey) {
+    return NextResponse.json({ error: "OPENROUTER_API_KEY not set" }, { status: 500 });
+  }
 
   try {
-    const message = await client.messages.create({
-      model: "anthropic/claude-haiku-4.5",
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-haiku-4-5",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 300,
+      }),
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[suggest-topic] OpenRouter error:", res.status, errText);
+      return NextResponse.json({ error: "AI generation failed", detail: errText }, { status: 500 });
+    }
+
+    const data = await res.json();
+    const text: string = data.choices?.[0]?.message?.content ?? "";
     const topics = text
       .split("\n")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
+      .map((t: string) => t.trim())
+      .filter((t: string) => t.length > 0)
       .slice(0, 4);
 
     return NextResponse.json({ topics });
