@@ -5,12 +5,12 @@ import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const k1 = process.env.OPENROUTER_API_KEY;
+  const k2 = process.env.OR_KEY;
   return NextResponse.json({
-    has_key: !!apiKey,
-    prefix: apiKey?.slice(0, 12) ?? null,
-    node_env: process.env.NODE_ENV,
-    vercel_env: process.env.VERCEL_ENV,
+    OPENROUTER_API_KEY: !!k1,
+    OR_KEY: !!k2,
+    prefix: (k1 ?? k2)?.slice(0, 12) ?? null,
   });
 }
 
@@ -52,10 +52,9 @@ Generate exactly 4 engaging post topic ideas in Thai for this brand.
 - Write in Thai, keep each under 80 characters
 - Return only the 4 topics, one per line, no numbering, no extra text`;
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  console.log("[suggest-topic] OPENROUTER_API_KEY present:", !!apiKey, "prefix:", apiKey?.slice(0, 8));
+  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OR_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY not set", env_keys: Object.keys(process.env).filter(k => k.includes("OPEN") || k.includes("KEY") || k.includes("ROUTER")) }, { status: 500 });
+    return NextResponse.json({ error: "API key not set" }, { status: 500 });
   }
 
   try {
