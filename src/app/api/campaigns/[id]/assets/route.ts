@@ -11,7 +11,7 @@ async function mirrorToBlobStore(kieUrl: string, path: string): Promise<string> 
     if (!res.ok) return kieUrl;
     const buffer = await res.arrayBuffer();
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
-    const blob = await put(path, Buffer.from(buffer), { access: "private", contentType });
+    const blob = await put(path, Buffer.from(buffer), { access: "public", contentType });
     return blob.url;
   } catch {
     return kieUrl;

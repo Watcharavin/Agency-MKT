@@ -12,7 +12,7 @@ async function mirrorNow(kieUrl: string, taskId: string): Promise<string> {
     const buffer = await res.arrayBuffer();
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
     const blob = await put(`generated/tasks/${taskId}.jpg`, Buffer.from(buffer), {
-      access: "private",
+      access: "public",
       contentType,
       addRandomSuffix: false,
     });
