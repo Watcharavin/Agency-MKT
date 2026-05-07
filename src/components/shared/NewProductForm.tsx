@@ -56,7 +56,7 @@ export function NewProductForm() {
       const results = await Promise.allSettled(
         files.map(async (file, i) => {
           const blob = await upload(`products/${Date.now()}-${file.name}`, file, {
-            access: "public",
+            access: "private",
             handleUploadUrl: "/api/products/upload",
           });
           return { blobUrl: blob.url, preview: previews[i].preview };
