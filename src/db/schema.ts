@@ -24,8 +24,16 @@ export const brands = pgTable("brands", {
   dontSay:       text("dont_say"),
   displayFont:   text("display_font").default("Inter"),
   bodyFont:      text("body_font").default("Inter"),
-  // socialLinks — added in schema, pending DB migration via Neon dashboard
-  // ALTER TABLE brands ADD COLUMN social_links jsonb DEFAULT '{}';
+  socialLinks:   jsonb("social_links").$type<{
+    facebook?:   string;
+    instagram?:  string;
+    tiktok?:     string;
+    tiktokShop?: string;
+    line?:       string;
+    lineUrl?:    string;
+    shopee?:     string;
+    phone?:      string;
+  }>().default({}),
   createdAt:     timestamp("created_at").defaultNow(),
   updatedAt:     timestamp("updated_at").defaultNow(),
 });
@@ -52,17 +60,16 @@ export const campaigns = pgTable("campaigns", {
   channel:       channelEnum("channel").notNull(),
   topic:         text("topic").notNull(),
   brief:         text("brief"),
+  audience:      text("audience"),
   tone:          text("tone").default("Educational"),
   language:      text("language").default("TH"),
   slideCount:    integer("slide_count").default(3),
-  // New fields pending DB migration via Neon dashboard:
-  // ALTER TABLE campaigns ADD COLUMN audience text;
-  // ALTER TABLE campaigns ADD COLUMN image_ratio text DEFAULT '1:1';
-  // ALTER TABLE campaigns ADD COLUMN pillar text;
-  // ALTER TABLE campaigns ADD COLUMN goal text;
-  // ALTER TABLE campaigns ADD COLUMN cta text;
-  // ALTER TABLE campaigns ADD COLUMN caption_length text DEFAULT 'Medium';
-  // ALTER TABLE campaigns ADD COLUMN footer_style text DEFAULT 'Full';
+  imageRatio:    text("image_ratio").default("1:1"),
+  pillar:        text("pillar"),
+  goal:          text("goal"),
+  cta:           text("cta"),
+  captionLength: text("caption_length").default("Medium"),
+  footerStyle:   text("footer_style").default("Full"),
   status:        campaignStatusEnum("status").default("draft"),
   scheduledAt:   timestamp("scheduled_at"),          // for Content Calendar
   createdAt:     timestamp("created_at").defaultNow(),
