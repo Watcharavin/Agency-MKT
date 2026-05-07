@@ -4,6 +4,16 @@ import { db } from "@/db";
 import { brands, products } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export async function GET() {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  return NextResponse.json({
+    has_key: !!apiKey,
+    prefix: apiKey?.slice(0, 12) ?? null,
+    node_env: process.env.NODE_ENV,
+    vercel_env: process.env.VERCEL_ENV,
+  });
+}
+
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
