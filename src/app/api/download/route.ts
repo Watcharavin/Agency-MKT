@@ -11,14 +11,16 @@ export async function GET(req: NextRequest) {
     const res = await fetch(url);
     if (!res.ok) return new NextResponse("Not found", { status: 404 });
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
-    return new NextResponse(res.body, {
+    const buffer = await res.arrayBuffer();
+    return new NextResponse(buffer, {
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": 'attachment; filename="' + name + '"',
         "Cache-Control": "public, max-age=86400",
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("[download] fetch failed:", err);
     return new NextResponse("Error", { status: 500 });
   }
 }
