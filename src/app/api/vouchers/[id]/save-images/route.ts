@@ -1,14 +1,29 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import { db } from "@/db";
 import { brands, voucherCollections, coupons } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 type SavedImage = {
-  label: string;       // "voucher_cover" | "coupon"
+  label: string;       // "voucher_cover" | "collection" | "coupon"
   couponId?: string;
   imageUrl: string;
 };
+
+// Fetch KIE-generated image and re-upload to our Vercel Blob for permanent storage
+async function mirrorToBlobStore(kieUrl: string, path: string): Promise<string> {
+  try {
+    const res = await fetch(kieUrl);
+    if (!res.ok) return kieUrl; // fallback: keep KIE URL if fetch fails
+    const buffer = await res.arrayBuffer();
+    const contentType = res.headers.get("content-type") ?? "image/jpeg";
+    const blob = await put(path, Buffer.from(buffer), { access: "private", contentType });
+    return blob.url;
+  } catch {
+    return kieUrl; // fallback
+  }
+}
 
 export async function POST(
   req: NextRequest,
@@ -33,8 +48,18 @@ export async function POST(
 
   if (voucherRows.length === 0) return NextResponse.json({ error: "Voucher not found" }, { status: 404 });
 
-  // Save each image
-  for (const img of images) {
+  // Mirror KIE URLs to Vercel Blob in parallel for permanent storage
+  const mirrored = await Promise.all(
+    images.map(async (img, i) => {
+      const ext = "jpg";
+      const path = `generated/vouchers/${id}/${img.label}-${i}.${ext}`;
+      const url = await mirrorToBlobStore(img.imageUrl, path);
+      return { ...img, imageUrl: url };
+    })
+  );
+
+  // Save each image URL to DB
+  for (const img of mirrored) {
     if (img.label === "voucher_cover") {
       await db
         .update(voucherCollections)
@@ -53,5 +78,5 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ ok: true, saved: images.length });
+  return NextResponse.json({ ok: true, saved: mirrored.length });
 }

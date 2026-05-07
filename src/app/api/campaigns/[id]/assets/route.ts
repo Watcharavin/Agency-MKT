@@ -1,8 +1,22 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import { db } from "@/db";
 import { brands, campaigns, generatedAssets } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+
+async function mirrorToBlobStore(kieUrl: string, path: string): Promise<string> {
+  try {
+    const res = await fetch(kieUrl);
+    if (!res.ok) return kieUrl;
+    const buffer = await res.arrayBuffer();
+    const contentType = res.headers.get("content-type") ?? "image/jpeg";
+    const blob = await put(path, Buffer.from(buffer), { access: "private", contentType });
+    return blob.url;
+  } catch {
+    return kieUrl;
+  }
+}
 
 export async function POST(
   req: NextRequest,
@@ -24,13 +38,20 @@ export async function POST(
   // Replace old assets
   await db.delete(generatedAssets).where(eq(generatedAssets.campaignId, id));
 
+  // Mirror KIE URLs to Vercel Blob in parallel
+  const blobUrls = await Promise.all(
+    body.imageUrls.map((url, i) =>
+      mirrorToBlobStore(url, `generated/campaigns/${id}/slide-${i}.jpg`)
+    )
+  );
+
   // Insert slide images
-  for (let i = 0; i < body.imageUrls.length; i++) {
+  for (let i = 0; i < blobUrls.length; i++) {
     await db.insert(generatedAssets).values({
       campaignId: id,
       type: "slide",
       slideIndex: i,
-      imageUrl: body.imageUrls[i],
+      imageUrl: blobUrls[i],
     });
   }
 
