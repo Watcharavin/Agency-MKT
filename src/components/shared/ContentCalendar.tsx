@@ -177,18 +177,28 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
 
   // ── Campaign card (used in all views) ──
 
+  const didDrag = useRef(false);
+
   function CampaignCard({ c, compact }: { c: Campaign; compact?: boolean }) {
     return (
-      <Link
-        href={`/campaigns/${c.id}`}
+      <div
         draggable
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", c.id);
           handleDragStart(c.id);
+          didDrag.current = true;
         }}
         onDragEnd={() => { dragRef.current = null; setDraggingId(null); }}
+        onClick={() => {
+          // Only navigate if not dragging
+          if (!didDrag.current) {
+            router.push(`/campaigns/${c.id}`);
+          }
+          didDrag.current = false;
+        }}
         className={cn(
-          "block rounded-md border px-2 py-1.5 transition-all cursor-grab active:cursor-grabbing",
+          "block rounded-md border px-2 py-1.5 transition-all cursor-grab active:cursor-grabbing select-none",
           compact ? "text-[10px]" : "text-xs",
           CHANNEL_COLOR[c.channel] ?? "bg-secondary text-foreground border-border",
           draggingId === c.id && "opacity-40 scale-95",
@@ -204,7 +214,7 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
             <span>{c.slideCount} slides</span>
           </div>
         )}
-      </Link>
+      </div>
     );
   }
 
