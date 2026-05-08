@@ -235,12 +235,16 @@ export function CampaignDetailClient({
     setSlideRatios((prev) => prev.map((r, i) => (i === index ? ratio : r)));
   }
 
-  // ─── Full regenerate (start from step 1 again) ───
-  function handleRegenerate() {
-    setPhase("idle");
-    setCaption("");
-    setHashtags("");
+  // ─── Regenerate caption only (keep images) ───
+  function handleRegenerateCaption() {
     setCompletedCount(0);
+    handleGenerateText();
+  }
+
+  // ─── Regenerate images only (keep caption) ───
+  function handleRegenerateImages() {
+    setCompletedCount(0);
+    setPhase("review_text"); // go to review step so user can adjust ratios before generating
   }
 
   async function handleDelete() {
@@ -494,13 +498,19 @@ export function CampaignDetailClient({
                 onClick={handleStartEdit}
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors"
               >
-                แก้ไข
+                แก้ไข Campaign
               </button>
               <button
-                onClick={handleRegenerate}
+                onClick={handleRegenerateCaption}
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors"
               >
-                ↺ Regenerate
+                ↺ Caption ใหม่
+              </button>
+              <button
+                onClick={handleRegenerateImages}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors"
+              >
+                ↺ รูปใหม่
               </button>
               <button
                 onClick={handleDelete}
