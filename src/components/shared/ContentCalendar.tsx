@@ -21,12 +21,27 @@ const CHANNEL_COLOR: Record<string, string> = {
   TikTok:    "bg-purple-100 text-purple-700 border-purple-200",
 };
 
+const CHANNEL_BG: Record<string, string> = {
+  Facebook:  "bg-blue-500",
+  Instagram: "bg-pink-500",
+  LINE:      "bg-green-500",
+  TikTok:    "bg-purple-500",
+};
+
 const STATUS_DOT: Record<string, string> = {
   draft:      "bg-gray-400",
   generating: "bg-yellow-400",
   generated:  "bg-green-400",
   scheduled:  "bg-blue-400",
   published:  "bg-foreground",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  draft:      "แบบร่าง",
+  generating: "กำลังสร้าง",
+  generated:  "สร้างแล้ว",
+  scheduled:  "มี schedule",
+  published:  "เผยแพร่แล้ว",
 };
 
 const FILTERS = ["ทั้งหมด", "Facebook", "Instagram", "LINE", "TikTok"] as const;
@@ -85,7 +100,14 @@ function getMonthCalendarDays(d: Date): Date[] {
   return days;
 }
 
-// ── Inline card render (NOT a component — returns JSX directly) ─────────────
+function toDateInputValue(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// ── Inline card render ──────────────────────────────────────────────────────
 
 function renderCard(
   c: Campaign,
@@ -133,6 +155,10 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
   const [filter, setFilter] = useState<string>("ทั้งหมด");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropOverDate, setDropOverDate] = useState<string | null>(null);
+  const [dropOverUnscheduled, setDropOverUnscheduled] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [popupDate, setPopupDate] = useState("");
+  const [saving, setSaving] = useState(false);
   const didDragRef = useRef(false);
 
   const today = new Date();
@@ -174,7 +200,7 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
     setCurrentDate(new Date());
   }
 
-  // ── Drag handlers (stable via useCallback) ──
+  // ── Drag handlers ──
 
   const handleCardDragStart = useCallback((e: React.DragEvent<HTMLDivElement>, id: string) => {
     e.dataTransfer.effectAllowed = "move";
@@ -185,13 +211,34 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
 
   const handleCardDragEnd = useCallback(() => {
     setDraggingId(null);
+    setDropOverUnscheduled(false);
   }, []);
 
   const handleCardClick = useCallback((id: string) => {
-    if (!didDragRef.current) {
-      router.push(`/campaigns/${id}`);
+    if (didDragRef.current) {
+      didDragRef.current = false;
+      return;
     }
-    didDragRef.current = false;
+    const c = items.find((x) => x.id === id);
+    if (c) {
+      setSelectedCampaign(c);
+      setPopupDate(c.scheduledAt ? toDateInputValue(new Date(c.scheduledAt)) : "");
+    }
+  }, [items]);
+
+  // ── Schedule/unschedule via API ──
+
+  const patchCampaign = useCallback(async (cId: string, data: Record<string, unknown>) => {
+    try {
+      await fetch(`/api/campaigns/${cId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      router.refresh();
+    } catch {
+      router.refresh();
+    }
   }, [router]);
 
   const handleDropOnDate = useCallback(async (e: React.DragEvent, targetDate: Date) => {
@@ -207,34 +254,66 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
       )
     );
 
-    try {
-      await fetch(`/api/campaigns/${cId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scheduledAt: targetDate.toISOString(),
-          status: "scheduled",
-        }),
-      });
-      router.refresh();
-    } catch {
-      router.refresh();
-    }
-  }, [router]);
+    await patchCampaign(cId, { scheduledAt: targetDate.toISOString(), status: "scheduled" });
+  }, [patchCampaign]);
 
-  const handleDragOver = useCallback((e: React.DragEvent, dateKey: string) => {
+  // Drop on unscheduled zone = remove schedule
+  const handleDropOnUnscheduled = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropOverUnscheduled(false);
+    const cId = e.dataTransfer.getData("text/plain");
+    if (!cId) return;
+    setDraggingId(null);
+
+    setItems((prev) =>
+      prev.map((c) =>
+        c.id === cId ? { ...c, scheduledAt: null, status: "draft" as const } : c
+      )
+    );
+
+    await patchCampaign(cId, { scheduledAt: null, status: "draft" });
+  }, [patchCampaign]);
+
+  const handleDragOver = useCallback((e: React.DragEvent, dk: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    setDropOverDate(dateKey);
+    setDropOverDate(dk);
   }, []);
 
   const handleDragLeave = useCallback(() => {
     setDropOverDate(null);
   }, []);
 
-  // Helper to make a unique key for each date cell
   function dateKey(d: Date) {
     return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  }
+
+  // ── Popup: save date change ──
+
+  async function handlePopupSaveDate() {
+    if (!selectedCampaign) return;
+    setSaving(true);
+
+    if (popupDate) {
+      const newDate = new Date(popupDate + "T12:00:00");
+      setItems((prev) =>
+        prev.map((c) =>
+          c.id === selectedCampaign.id ? { ...c, scheduledAt: newDate, status: "scheduled" as const } : c
+        )
+      );
+      await patchCampaign(selectedCampaign.id, { scheduledAt: newDate.toISOString(), status: "scheduled" });
+      setSelectedCampaign((prev) => prev ? { ...prev, scheduledAt: newDate, status: "scheduled" as const } : null);
+    } else {
+      setItems((prev) =>
+        prev.map((c) =>
+          c.id === selectedCampaign.id ? { ...c, scheduledAt: null, status: "draft" as const } : c
+        )
+      );
+      await patchCampaign(selectedCampaign.id, { scheduledAt: null, status: "draft" });
+      setSelectedCampaign((prev) => prev ? { ...prev, scheduledAt: null, status: "draft" as const } : null);
+    }
+
+    setSaving(false);
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -279,19 +358,34 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
         </div>
       </div>
 
-      {/* ── Unscheduled campaigns (drag source) ── */}
-      {unscheduled.length > 0 && (
-        <div className="rounded-lg border border-dashed border-border bg-secondary/30 p-3">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
-            ยังไม่ได้ schedule ({unscheduled.length})  — ลากไปวางในปฏิทิน
-          </p>
+      {/* ── Unscheduled pool (drag source + drop target to unschedule) ── */}
+      <div
+        className={cn(
+          "rounded-lg border border-dashed p-3 transition-colors",
+          dropOverUnscheduled
+            ? "border-red-400 bg-red-50/50 ring-2 ring-red-200"
+            : "border-border bg-secondary/30",
+        )}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDropOverUnscheduled(true); }}
+        onDragLeave={() => setDropOverUnscheduled(false)}
+        onDrop={handleDropOnUnscheduled}
+      >
+        <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
+          {dropOverUnscheduled
+            ? "ปล่อยที่นี่เพื่อยกเลิก schedule"
+            : `ยังไม่ได้ schedule (${unscheduled.length})  — ลากไปวางในปฏิทิน`
+          }
+        </p>
+        {unscheduled.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {unscheduled.map((c) =>
               renderCard(c, true, draggingId, handleCardDragStart, handleCardDragEnd, handleCardClick)
             )}
           </div>
-        </div>
-      )}
+        ) : !dropOverUnscheduled ? (
+          <p className="text-[10px] text-muted-foreground/50 italic">ทุก campaign มี schedule แล้ว</p>
+        ) : null}
+      </div>
 
       {/* ══ MONTH VIEW ══ */}
       {view === "month" && (
@@ -410,8 +504,8 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
           ) : (
             <>
               {filtered.filter((c) => c.scheduledAt).sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime()).map((c) => (
-                <Link key={c.id} href={`/campaigns/${c.id}`}
-                  className="flex items-center gap-4 rounded-lg border border-border bg-card px-4 py-3 hover:border-foreground/30 transition-colors"
+                <div key={c.id} onClick={() => { setSelectedCampaign(c); setPopupDate(c.scheduledAt ? toDateInputValue(new Date(c.scheduledAt)) : ""); }}
+                  className="flex items-center gap-4 rounded-lg border border-border bg-card px-4 py-3 hover:border-foreground/30 transition-colors cursor-pointer"
                 >
                   <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[10px] font-mono font-bold border", CHANNEL_COLOR[c.channel])}>
                     {CHANNEL_ICON[c.channel]}
@@ -435,15 +529,15 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
                       <span className="text-[10px] text-muted-foreground">{c.status}</span>
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
 
               {unscheduled.length > 0 && (
                 <>
                   <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground pt-3">ยังไม่ได้ schedule</p>
                   {unscheduled.map((c) => (
-                    <Link key={c.id} href={`/campaigns/${c.id}`}
-                      className="flex items-center gap-4 rounded-lg border border-dashed border-border bg-card px-4 py-3 hover:border-foreground/30 transition-colors"
+                    <div key={c.id} onClick={() => { setSelectedCampaign(c); setPopupDate(""); }}
+                      className="flex items-center gap-4 rounded-lg border border-dashed border-border bg-card px-4 py-3 hover:border-foreground/30 transition-colors cursor-pointer"
                     >
                       <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[10px] font-mono font-bold border", CHANNEL_COLOR[c.channel])}>
                         {CHANNEL_ICON[c.channel]}
@@ -457,12 +551,137 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
                         </div>
                       </div>
                       <span className="text-[10px] text-muted-foreground italic shrink-0">ไม่มี schedule</span>
-                    </Link>
+                    </div>
                   ))}
                 </>
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ══ CAMPAIGN DETAIL POPUP ══ */}
+      {selectedCampaign && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setSelectedCampaign(null)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header bar */}
+            <div className={cn("px-5 py-3 flex items-center justify-between", CHANNEL_BG[selectedCampaign.channel] ?? "bg-foreground")}>
+              <div className="flex items-center gap-2">
+                <span className="text-white text-xs font-mono font-bold">{CHANNEL_ICON[selectedCampaign.channel]}</span>
+                <span className="text-white/80 text-[10px]">{selectedCampaign.channel}</span>
+              </div>
+              <button onClick={() => setSelectedCampaign(null)} className="text-white/70 hover:text-white text-lg leading-none">&times;</button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-4">
+              {/* Topic */}
+              <div>
+                <h3 className="text-base font-semibold text-foreground">{selectedCampaign.topic}</h3>
+                {selectedCampaign.brief && (
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{selectedCampaign.brief}</p>
+                )}
+              </div>
+
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md bg-secondary/50 px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground font-mono uppercase">Status</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={cn("w-2 h-2 rounded-full", STATUS_DOT[selectedCampaign.status ?? "draft"])} />
+                    <span className="text-xs font-medium text-foreground">{STATUS_LABEL[selectedCampaign.status ?? "draft"] ?? selectedCampaign.status}</span>
+                  </div>
+                </div>
+                <div className="rounded-md bg-secondary/50 px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground font-mono uppercase">Slides</p>
+                  <p className="text-xs font-medium text-foreground mt-0.5">{selectedCampaign.slideCount} slides</p>
+                </div>
+                {selectedCampaign.pillar && (
+                  <div className="rounded-md bg-secondary/50 px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground font-mono uppercase">Pillar</p>
+                    <p className="text-xs font-medium text-foreground mt-0.5">{selectedCampaign.pillar}</p>
+                  </div>
+                )}
+                {selectedCampaign.tone && (
+                  <div className="rounded-md bg-secondary/50 px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground font-mono uppercase">Tone</p>
+                    <p className="text-xs font-medium text-foreground mt-0.5">{selectedCampaign.tone}</p>
+                  </div>
+                )}
+                {selectedCampaign.goal && (
+                  <div className="rounded-md bg-secondary/50 px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground font-mono uppercase">Goal</p>
+                    <p className="text-xs font-medium text-foreground mt-0.5">{selectedCampaign.goal}</p>
+                  </div>
+                )}
+                {selectedCampaign.audience && (
+                  <div className="rounded-md bg-secondary/50 px-3 py-2">
+                    <p className="text-[10px] text-muted-foreground font-mono uppercase">Audience</p>
+                    <p className="text-xs font-medium text-foreground mt-0.5">{selectedCampaign.audience}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Date picker */}
+              <div className="rounded-md border border-border p-3 space-y-2">
+                <label className="text-[10px] font-mono uppercase text-muted-foreground">Schedule วันที่</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={popupDate}
+                    onChange={(e) => setPopupDate(e.target.value)}
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  {popupDate && (
+                    <button
+                      onClick={() => setPopupDate("")}
+                      className="rounded-md border border-border px-2 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+                      title="ยกเลิก schedule"
+                    >
+                      ล้าง
+                    </button>
+                  )}
+                </div>
+                {/* Show if date changed */}
+                {(() => {
+                  const origDate = selectedCampaign.scheduledAt ? toDateInputValue(new Date(selectedCampaign.scheduledAt)) : "";
+                  const changed = popupDate !== origDate;
+                  if (!changed) return null;
+                  return (
+                    <button
+                      onClick={handlePopupSaveDate}
+                      disabled={saving}
+                      className="w-full rounded-md bg-foreground text-card py-2 text-xs font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
+                    >
+                      {saving ? "กำลังบันทึก..." : popupDate ? `ย้ายไป ${new Date(popupDate + "T12:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}` : "ยกเลิก schedule"}
+                    </button>
+                  );
+                })()}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Link
+                  href={`/campaigns/${selectedCampaign.id}`}
+                  className="flex-1 text-center rounded-md border border-border py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                >
+                  ดูรายละเอียดเต็ม
+                </Link>
+                <button
+                  onClick={() => setSelectedCampaign(null)}
+                  className="rounded-md border border-border px-4 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
