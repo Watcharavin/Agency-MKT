@@ -64,9 +64,15 @@ export default function SettingsPage() {
   const [showGuide, setShowGuide] = useState<string | null>(null);
 
   const fetchAccounts = useCallback(async () => {
-    const res = await fetch("/api/social-accounts");
-    const data = await res.json();
-    setAccounts(data.accounts || []);
+    try {
+      const res = await fetch("/api/social-accounts");
+      if (res.ok) {
+        const data = await res.json();
+        setAccounts(data.accounts || []);
+      }
+    } catch {
+      // DB table may not exist yet — show empty state
+    }
     setLoading(false);
   }, []);
 
