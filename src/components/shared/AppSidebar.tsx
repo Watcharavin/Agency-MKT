@@ -36,6 +36,12 @@ const NAV = [
       { href: "/campaigns/new?type=platform", label: "To Platform", icon: "↗" },
     ],
   },
+  {
+    group: "SETTINGS",
+    items: [
+      { href: "/settings", label: "Autopost", icon: "⚡" },
+    ],
+  },
 ];
 
 export function AppSidebar() {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/db";
-import { brands, campaigns, generatedAssets, products } from "@/db/schema";
+import { brands, campaigns, generatedAssets, products, postLogs, socialAccounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { CampaignDetailClient } from "@/components/shared/CampaignDetailClient";
 
@@ -41,6 +41,19 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
     productName = pRows[0]?.name ?? null;
   }
 
+  // Fetch post logs
+  const logs = await db.select({
+    id: postLogs.id,
+    platform: postLogs.platform,
+    status: postLogs.status,
+    platformPostUrl: postLogs.platformPostUrl,
+    errorMessage: postLogs.errorMessage,
+    postedAt: postLogs.postedAt,
+    accountName: socialAccounts.platformAccountName,
+  }).from(postLogs)
+    .leftJoin(socialAccounts, eq(postLogs.socialAccountId, socialAccounts.id))
+    .where(eq(postLogs.campaignId, id));
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -64,6 +77,37 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
 
       {/* Main content (generate + results) */}
       <CampaignDetailClient campaign={campaign} initialAssets={assets} />
+
+      {/* Post logs */}
+      {logs.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-foreground pb-3 border-b border-border">Autopost Results</h2>
+          {logs.map((log) => (
+            <div key={log.id} className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className={`inline-block h-2 w-2 rounded-full ${log.status === "success" ? "bg-green-500" : log.status === "failed" ? "bg-red-500" : "bg-yellow-500"}`} />
+                <span className="text-foreground font-medium capitalize">{log.platform}</span>
+                {log.accountName && <span className="text-muted-foreground">({log.accountName})</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                {log.status === "success" && log.platformPostUrl && (
+                  <a href={log.platformPostUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                    View Post
+                  </a>
+                )}
+                {log.status === "failed" && (
+                  <span className="text-red-500" title={log.errorMessage || ""}>Failed</span>
+                )}
+                {log.postedAt && (
+                  <span className="text-muted-foreground">
+                    {new Date(log.postedAt).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Campaign info */}
       <div className="rounded-lg border border-border bg-card p-5 space-y-3">

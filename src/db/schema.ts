@@ -4,6 +4,8 @@ import { pgTable, text, integer, timestamp, jsonb, pgEnum } from "drizzle-orm/pg
 export const channelEnum = pgEnum("channel", ["Facebook", "Instagram", "LINE", "TikTok"]);
 export const campaignStatusEnum = pgEnum("campaign_status", ["draft", "generating", "generated", "scheduled", "published"]);
 export const assetTypeEnum = pgEnum("asset_type", ["slide", "caption", "hashtags"]);
+export const platformEnum = pgEnum("platform", ["line", "facebook", "instagram", "x", "tiktok"]);
+export const postStatusEnum = pgEnum("post_status", ["pending", "success", "failed"]);
 
 // ─── Brands (Brand DNA) ───────────────────────────────────────────────────
 export const brands = pgTable("brands", {
@@ -122,6 +124,36 @@ export const coupons = pgTable("coupons", {
   createdAt:     timestamp("created_at").defaultNow(),
 });
 
+// ─── Social Accounts (Autopost connections) ─────────────────────────────
+export const socialAccounts = pgTable("social_accounts", {
+  id:                  text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  brandId:             text("brand_id").notNull().references(() => brands.id, { onDelete: "cascade" }),
+  platform:            platformEnum("platform").notNull(),
+  accessToken:         text("access_token").notNull(),       // encrypted
+  refreshToken:        text("refresh_token"),                // encrypted (FB/X/TikTok)
+  tokenExpiresAt:      timestamp("token_expires_at"),
+  platformAccountId:   text("platform_account_id"),          // page id, channel id
+  platformAccountName: text("platform_account_name"),        // display name
+  isActive:            integer("is_active").default(1),      // 1=active, 0=inactive
+  createdAt:           timestamp("created_at").defaultNow(),
+  updatedAt:           timestamp("updated_at").defaultNow(),
+});
+
+// ─── Post Logs (Autopost results) ───────────────────────────────────────
+export const postLogs = pgTable("post_logs", {
+  id:              text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  campaignId:      text("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  socialAccountId: text("social_account_id").notNull().references(() => socialAccounts.id, { onDelete: "cascade" }),
+  platform:        platformEnum("platform").notNull(),
+  status:          postStatusEnum("post_status").default("pending"),
+  platformPostId:  text("platform_post_id"),                 // post ID from platform
+  platformPostUrl: text("platform_post_url"),                // link to view post
+  errorMessage:    text("error_message"),
+  postedAt:        timestamp("posted_at"),
+  retryCount:      integer("retry_count").default(0),
+  createdAt:       timestamp("created_at").defaultNow(),
+});
+
 // ─── Types (inferred) ─────────────────────────────────────────────────────
 export type Brand               = typeof brands.$inferSelect;
 export type NewBrand            = typeof brands.$inferInsert;
@@ -134,3 +166,7 @@ export type VoucherCollection   = typeof voucherCollections.$inferSelect;
 export type NewVoucherCollection = typeof voucherCollections.$inferInsert;
 export type Coupon              = typeof coupons.$inferSelect;
 export type NewCoupon           = typeof coupons.$inferInsert;
+export type SocialAccount       = typeof socialAccounts.$inferSelect;
+export type NewSocialAccount    = typeof socialAccounts.$inferInsert;
+export type PostLog             = typeof postLogs.$inferSelect;
+export type NewPostLog          = typeof postLogs.$inferInsert;
