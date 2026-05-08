@@ -17,7 +17,7 @@ const TONES = ["Educational", "Casual", "Professional", "Playful", "Inspirationa
 const LANGUAGES = ["TH", "EN", "TH+EN"];
 const CAPTION_LENGTHS = ["Short", "Medium", "Long"];
 const FOOTER_STYLES = ["Full", "Shopee", "LINE", "Min", "ไม่ใส่"];
-const RATIOS = ["1:1", "16:9", "9:16", "4:5"];
+const RATIOS = ["1:1", "9:16", "16:9", "4:3", "3:4"];
 
 type Phase = "idle" | "generating_text" | "review_text" | "generating_images" | "done" | "editing";
 

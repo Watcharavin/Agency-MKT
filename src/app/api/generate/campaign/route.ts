@@ -13,6 +13,8 @@ const CHANNEL_ASPECT: Record<string, string> = {
   TikTok:    "9:16",
 };
 
+// KIE API supported ratios: 1:1, 9:16, 16:9, 4:3, 3:4
+
 async function createKieTask(inputUrls: string[], prompt: string, aspectRatio: string): Promise<string> {
   const apiKey = process.env.KIE_API_KEY;
   if (!apiKey) throw new Error("KIE_API_KEY not set");

@@ -15,10 +15,10 @@ const PLATFORMS = [
 ];
 
 const PLATFORM_RATIOS: Record<string, { ratios: string[]; default: string }> = {
-  Instagram: { ratios: ["1:1", "4:5", "9:16"], default: "1:1" },
-  Facebook:  { ratios: ["16:9", "1:1", "4:5"], default: "16:9" },
-  TikTok:    { ratios: ["9:16", "1:1"],        default: "9:16" },
-  LINE:      { ratios: ["1:1", "16:9"],        default: "1:1" },
+  Instagram: { ratios: ["1:1", "9:16", "4:3", "3:4"], default: "1:1" },
+  Facebook:  { ratios: ["16:9", "1:1", "4:3"],        default: "16:9" },
+  TikTok:    { ratios: ["9:16", "1:1", "16:9"],       default: "9:16" },
+  LINE:      { ratios: ["1:1", "16:9", "4:3"],        default: "1:1" },
 };
 
 const PILLARS = [
