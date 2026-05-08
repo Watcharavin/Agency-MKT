@@ -90,8 +90,9 @@ function getMonthCalendarDays(d: Date): Date[] {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ContentCalendar({ campaigns }: { campaigns: Campaign[] }) {
+export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Campaign[] }) {
   const router = useRouter();
+  const [items, setItems] = useState<Campaign[]>(initialCampaigns);
   const [view, setView] = useState<ViewMode>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [filter, setFilter] = useState<string>("ทั้งหมด");
@@ -101,8 +102,8 @@ export function ContentCalendar({ campaigns }: { campaigns: Campaign[] }) {
   const today = new Date();
 
   const filtered = filter === "ทั้งหมด"
-    ? campaigns
-    : campaigns.filter((c) => c.channel === filter);
+    ? items
+    : items.filter((c) => c.channel === filter);
 
   function getCampaignsForDay(day: Date) {
     return filtered.filter((c) => {
@@ -146,6 +147,13 @@ export function ContentCalendar({ campaigns }: { campaigns: Campaign[] }) {
     dragRef.current = null;
     setDraggingId(null);
 
+    // Optimistic update — move campaign to target date immediately
+    setItems((prev) =>
+      prev.map((c) =>
+        c.id === cId ? { ...c, scheduledAt: targetDate, status: "scheduled" as const } : c
+      )
+    );
+
     try {
       await fetch(`/api/campaigns/${cId}`, {
         method: "PATCH",
@@ -157,7 +165,8 @@ export function ContentCalendar({ campaigns }: { campaigns: Campaign[] }) {
       });
       router.refresh();
     } catch {
-      // silent fail
+      // Revert on failure — refetch
+      router.refresh();
     }
   }
 
