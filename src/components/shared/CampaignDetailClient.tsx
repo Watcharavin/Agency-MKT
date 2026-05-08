@@ -36,6 +36,8 @@ export function CampaignDetailClient({
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState<"caption" | "hashtags" | null>(null);
   const [saving, setSaving] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [postResult, setPostResult] = useState<{ platform: string; status: string; postUrl?: string; error?: string }[] | null>(null);
 
   // Text fields (editable in review phase)
   const [caption, setCaption] = useState(assets.find((a) => a.type === "caption")?.textContent ?? "");
@@ -252,6 +254,25 @@ export function CampaignDetailClient({
     setDeleting(true);
     await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
     router.push("/campaigns");
+  }
+
+  async function handlePostNow() {
+    if (!confirm("โพสต์ campaign นี้ไปยัง " + campaign.channel + " ตอนนี้เลย?")) return;
+    setPosting(true);
+    setPostResult(null);
+    try {
+      const res = await fetch(`/api/campaigns/${campaign.id}/post`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setPostResult([{ platform: campaign.channel, status: "failed", error: data.error }]);
+      } else {
+        setPostResult(data.results);
+        setCampaign(prev => ({ ...prev, status: "published" }));
+      }
+    } catch {
+      setPostResult([{ platform: campaign.channel, status: "failed", error: "Network error" }]);
+    }
+    setPosting(false);
   }
 
   async function handleCopy(text: string, key: "caption" | "hashtags") {
@@ -513,6 +534,13 @@ export function CampaignDetailClient({
                 ↺ รูปใหม่
               </button>
               <button
+                onClick={handlePostNow}
+                disabled={posting || campaign.status === "published"}
+                className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-40"
+              >
+                {posting ? "กำลังโพสต์…" : campaign.status === "published" ? "Published" : `Post to ${campaign.channel}`}
+              </button>
+              <button
                 onClick={handleDelete}
                 disabled={deleting}
                 className="rounded-md border border-red-200 bg-background px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
@@ -520,6 +548,23 @@ export function CampaignDetailClient({
                 {deleting ? "กำลังลบ…" : "ลบ"}
               </button>
             </div>
+
+            {/* Post result */}
+            {postResult && (
+              <div className="mt-2 space-y-1">
+                {postResult.map((r, i) => (
+                  <div key={i} className={`flex items-center gap-2 text-xs rounded-md px-3 py-2 ${r.status === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                    <span className={`inline-block h-2 w-2 rounded-full ${r.status === "success" ? "bg-green-500" : "bg-red-500"}`} />
+                    <span className="font-medium capitalize">{r.platform}</span>
+                    {r.status === "success" ? (
+                      <span>— Posted successfully {r.postUrl && <a href={r.postUrl} target="_blank" rel="noopener noreferrer" className="underline ml-1">View</a>}</span>
+                    ) : (
+                      <span>— {r.error}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Slides grid */}
