@@ -310,36 +310,36 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
   return (
     <div className="space-y-4">
 
-      {/* ── Header ── */}
+      {/* ── View Switcher ── */}
+      <div className="flex items-center justify-center gap-1 rounded-lg border border-border bg-secondary/30 p-1">
+        {(["month", "week", "day", "list"] as const).map((v) => (
+          <button key={v} onClick={() => setView(v)}
+            className={cn("rounded-md px-5 py-2 text-sm font-medium transition-all",
+              view === v ? "bg-foreground text-card shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            )}>
+            {{ month: "เดือน", week: "สัปดาห์", day: "วัน", list: "รายการ" }[v]}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Nav + Filters ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <button onClick={goPrev} className="rounded-md border border-border px-2 py-1.5 text-xs hover:bg-secondary transition-colors">&lt;</button>
-          <button onClick={goToday} className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary transition-colors">วันนี้</button>
-          <button onClick={goNext} className="rounded-md border border-border px-2 py-1.5 text-xs hover:bg-secondary transition-colors">&gt;</button>
+          <button onClick={goPrev} className="rounded-md border border-border px-2.5 py-1.5 text-sm hover:bg-secondary transition-colors">&lt;</button>
+          <button onClick={goToday} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-secondary transition-colors">วันนี้</button>
+          <button onClick={goNext} className="rounded-md border border-border px-2.5 py-1.5 text-sm hover:bg-secondary transition-colors">&gt;</button>
           <h2 className="text-sm font-semibold text-foreground ml-2">{getHeaderTitle()}</h2>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            {FILTERS.map((f) => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={cn("rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors",
-                  filter === f ? "bg-foreground text-card" : "bg-secondary text-foreground hover:bg-border"
-                )}>
-                {f}
-              </button>
-            ))}
-          </div>
-          <div className="flex rounded-md border border-border overflow-hidden">
-            {(["month", "week", "day", "list"] as const).map((v) => (
-              <button key={v} onClick={() => setView(v)}
-                className={cn("px-3 py-1.5 text-[11px] font-medium transition-colors",
-                  view === v ? "bg-foreground text-card" : "bg-background text-foreground hover:bg-secondary"
-                )}>
-                {{ month: "เดือน", week: "สัปดาห์", day: "วัน", list: "รายการ" }[v]}
-              </button>
-            ))}
-          </div>
+        <div className="flex gap-1">
+          {FILTERS.map((f) => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={cn("rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors",
+                filter === f ? "bg-foreground text-card" : "bg-secondary text-foreground hover:bg-border"
+              )}>
+              {f}
+            </button>
+          ))}
         </div>
       </div>
 
