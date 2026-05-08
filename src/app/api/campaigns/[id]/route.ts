@@ -57,11 +57,19 @@ export async function PATCH(
     "topic", "brief", "audience", "tone", "language",
     "slideCount", "imageRatio", "pillar", "goal", "cta",
     "captionLength", "footerStyle", "channel", "productId", "status",
+    "scheduledAt",
   ] as const;
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   for (const key of ALLOWED) {
-    if (key in body) updates[key] = body[key];
+    if (key in body) {
+      // Convert scheduledAt string to Date
+      if (key === "scheduledAt" && body[key]) {
+        updates[key] = new Date(body[key]);
+      } else {
+        updates[key] = body[key];
+      }
+    }
   }
 
   await db.update(campaigns)
