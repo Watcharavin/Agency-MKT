@@ -108,7 +108,7 @@ export function CampaignDetailClient({
       const startRes = await fetch("/api/generate/campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaignId: campaign.id, slideRatios }),
+        body: JSON.stringify({ campaignId: campaign.id, slideRatios, caption }),
       });
 
       if (!startRes.ok) {

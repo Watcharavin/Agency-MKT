@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { campaignId, slideRatios } = body as { campaignId: string; slideRatios?: string[] };
+  const { campaignId, slideRatios, caption } = body as { campaignId: string; slideRatios?: string[]; caption?: string };
   if (!campaignId) return NextResponse.json({ error: "campaignId required" }, { status: 400 });
 
   // Fetch brand DNA
@@ -103,9 +103,13 @@ export async function POST(req: NextRequest) {
   const toneStr = [campaign.tone, ...((brand.toneTags as string[]) ?? [])].filter(Boolean).join(", ");
   const slideCount = slideRatios?.length ?? campaign.slideCount ?? 3;
 
+  // Summarize caption for image context (first 300 chars to keep prompt concise)
+  const captionSummary = caption ? caption.slice(0, 300).replace(/\n+/g, " ").trim() : "";
+
   const basePrompt = [
     `Social media ${campaign.channel} carousel post. Topic: ${campaign.topic}.`,
     campaign.brief ? `Brief: ${campaign.brief}` : "",
+    captionSummary ? `Post caption context: "${captionSummary}"` : "",
     `Brand: ${brand.name ?? ""}`,
     brand.tagline ? `Tagline: "${brand.tagline}"` : "",
     brand.audience ? `Target audience: ${brand.audience}` : "",
@@ -113,9 +117,7 @@ export async function POST(req: NextRequest) {
     brand.primaryColor
       ? `Brand colors: primary ${brand.primaryColor}${brand.secondaryColor ? `, secondary ${brand.secondaryColor}` : ""}${brand.thirdColor ? `, accent ${brand.thirdColor}` : ""}`
       : "",
-    brand.doSay ? `Do say: ${brand.doSay}` : "",
-    brand.dontSay ? `Do NOT say: ${brand.dontSay}` : "",
-    "High-quality marketing image, clean minimal design, on-brand typography.",
+    "High-quality marketing image, clean minimal design, on-brand typography. The image should visually match the caption content.",
   ].filter(Boolean).join(" ");
 
   const inputUrls = buildInputUrls(productPhotos);
