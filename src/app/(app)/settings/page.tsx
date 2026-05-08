@@ -108,7 +108,7 @@ export default function SettingsPage() {
   }
 
   const getConnected = (platformId: string) =>
-    accounts.find(a => a.platform === platformId && a.isActive === 1);
+    accounts.find(a => a.platform === platformId && Number(a.isActive) === 1);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -146,6 +146,12 @@ export default function SettingsPage() {
                         {connected.platformAccountName}
                       </span>
                       <button
+                        onClick={() => { setShowGuide(platform.id); }}
+                        className="rounded px-2 py-1 text-xs border border-border text-foreground hover:bg-secondary transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
                         onClick={() => handleDisconnect(connected.id)}
                         className="rounded px-2 py-1 text-xs border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors"
                       >
@@ -162,8 +168,8 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                {/* Connect form */}
-                {showGuide === platform.id && !connected && (
+                {/* Connect / Edit form */}
+                {showGuide === platform.id && (
                   <div className="mt-4 pt-4 border-t border-border space-y-3">
                     <div className="rounded-md bg-secondary/50 p-3">
                       <p className="text-xs font-medium text-foreground mb-1">วิธีหา Token:</p>
