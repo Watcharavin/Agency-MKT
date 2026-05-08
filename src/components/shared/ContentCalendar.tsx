@@ -97,7 +97,6 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
   const [currentDate, setCurrentDate] = useState(new Date());
   const [filter, setFilter] = useState<string>("ทั้งหมด");
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const dragRef = useRef<string | null>(null);
 
   const today = new Date();
 
@@ -141,10 +140,9 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
 
   // ── Drag & Drop ──
 
-  async function handleDrop(targetDate: Date) {
-    const cId = dragRef.current;
+  async function handleDrop(e: React.DragEvent, targetDate: Date) {
+    const cId = e.dataTransfer.getData("text/plain");
     if (!cId) return;
-    dragRef.current = null;
     setDraggingId(null);
 
     // Optimistic update — move campaign to target date immediately
@@ -165,14 +163,8 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
       });
       router.refresh();
     } catch {
-      // Revert on failure — refetch
       router.refresh();
     }
-  }
-
-  function handleDragStart(campaignId: string) {
-    dragRef.current = campaignId;
-    setDraggingId(campaignId);
   }
 
   // ── Campaign card (used in all views) ──
@@ -186,10 +178,10 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", c.id);
-          handleDragStart(c.id);
+          setDraggingId(c.id);
           didDrag.current = true;
         }}
-        onDragEnd={() => { dragRef.current = null; setDraggingId(null); }}
+        onDragEnd={() => setDraggingId(null)}
         onClick={() => {
           // Only navigate if not dragging
           if (!didDrag.current) {
@@ -225,9 +217,9 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
     return (
       <div
         className={cn(className, over && "bg-primary/5 ring-2 ring-primary/20")}
-        onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); }}
         onDragLeave={() => setOver(false)}
-        onDrop={(e) => { e.preventDefault(); setOver(false); handleDrop(date); }}
+        onDrop={(e) => { e.preventDefault(); setOver(false); handleDrop(e, date); }}
       >
         {children}
       </div>
