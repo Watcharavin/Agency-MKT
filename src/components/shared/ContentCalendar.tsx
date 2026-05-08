@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -67,25 +67,60 @@ function getWeekDays(d: Date): Date[] {
 function getMonthCalendarDays(d: Date): Date[] {
   const first = startOfMonth(d);
   const last = endOfMonth(d);
-  const startDay = first.getDay(); // 0 = Sunday
+  const startDay = first.getDay();
   const days: Date[] = [];
-  // Fill in days from previous month
   for (let i = startDay - 1; i >= 0; i--) {
     const prev = new Date(first);
     prev.setDate(first.getDate() - i - 1);
     days.push(prev);
   }
-  // Current month days
   for (let i = 1; i <= last.getDate(); i++) {
     days.push(new Date(d.getFullYear(), d.getMonth(), i));
   }
-  // Fill remaining to complete 6 rows (42 cells) or at least complete the last row
   while (days.length % 7 !== 0) {
     const next = new Date(days[days.length - 1]);
     next.setDate(next.getDate() + 1);
     days.push(next);
   }
   return days;
+}
+
+// ── Inline card render (NOT a component — returns JSX directly) ─────────────
+
+function renderCard(
+  c: Campaign,
+  compact: boolean,
+  draggingId: string | null,
+  onDragStart: (e: React.DragEvent<HTMLDivElement>, id: string) => void,
+  onDragEnd: () => void,
+  onClick: (id: string) => void,
+) {
+  return (
+    <div
+      key={c.id}
+      draggable
+      onDragStart={(e) => onDragStart(e, c.id)}
+      onDragEnd={onDragEnd}
+      onClick={(e) => { e.stopPropagation(); onClick(c.id); }}
+      className={cn(
+        "block rounded-md border px-2 py-1.5 transition-all cursor-grab active:cursor-grabbing select-none",
+        compact ? "text-[10px]" : "text-xs",
+        CHANNEL_COLOR[c.channel] ?? "bg-secondary text-foreground border-border",
+        draggingId === c.id && "opacity-40 scale-95",
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[c.status ?? "draft"])} />
+        <span className="font-medium truncate">{c.topic}</span>
+      </div>
+      {!compact && (
+        <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-70">
+          <span className="font-mono">{CHANNEL_ICON[c.channel]}</span>
+          <span>{c.slideCount} slides</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -97,6 +132,8 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
   const [currentDate, setCurrentDate] = useState(new Date());
   const [filter, setFilter] = useState<string>("ทั้งหมด");
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropOverDate, setDropOverDate] = useState<string | null>(null);
+  const didDragRef = useRef(false);
 
   const today = new Date();
 
@@ -111,7 +148,6 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
     });
   }
 
-  // Unscheduled campaigns
   const unscheduled = filtered.filter((c) => !c.scheduledAt);
 
   // ── Navigation ──
@@ -138,14 +174,33 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
     setCurrentDate(new Date());
   }
 
-  // ── Drag & Drop ──
+  // ── Drag handlers (stable via useCallback) ──
 
-  async function handleDrop(e: React.DragEvent, targetDate: Date) {
+  const handleCardDragStart = useCallback((e: React.DragEvent<HTMLDivElement>, id: string) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+    setDraggingId(id);
+    didDragRef.current = true;
+  }, []);
+
+  const handleCardDragEnd = useCallback(() => {
+    setDraggingId(null);
+  }, []);
+
+  const handleCardClick = useCallback((id: string) => {
+    if (!didDragRef.current) {
+      router.push(`/campaigns/${id}`);
+    }
+    didDragRef.current = false;
+  }, [router]);
+
+  const handleDropOnDate = useCallback(async (e: React.DragEvent, targetDate: Date) => {
+    e.preventDefault();
+    setDropOverDate(null);
     const cId = e.dataTransfer.getData("text/plain");
     if (!cId) return;
     setDraggingId(null);
 
-    // Optimistic update — move campaign to target date immediately
     setItems((prev) =>
       prev.map((c) =>
         c.id === cId ? { ...c, scheduledAt: targetDate, status: "scheduled" as const } : c
@@ -165,65 +220,21 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
     } catch {
       router.refresh();
     }
-  }
+  }, [router]);
 
-  // ── Campaign card (used in all views) ──
+  const handleDragOver = useCallback((e: React.DragEvent, dateKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropOverDate(dateKey);
+  }, []);
 
-  const didDrag = useRef(false);
+  const handleDragLeave = useCallback(() => {
+    setDropOverDate(null);
+  }, []);
 
-  function CampaignCard({ c, compact }: { c: Campaign; compact?: boolean }) {
-    return (
-      <div
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", c.id);
-          setDraggingId(c.id);
-          didDrag.current = true;
-        }}
-        onDragEnd={() => setDraggingId(null)}
-        onClick={() => {
-          // Only navigate if not dragging
-          if (!didDrag.current) {
-            router.push(`/campaigns/${c.id}`);
-          }
-          didDrag.current = false;
-        }}
-        className={cn(
-          "block rounded-md border px-2 py-1.5 transition-all cursor-grab active:cursor-grabbing select-none",
-          compact ? "text-[10px]" : "text-xs",
-          CHANNEL_COLOR[c.channel] ?? "bg-secondary text-foreground border-border",
-          draggingId === c.id && "opacity-40 scale-95",
-        )}
-      >
-        <div className="flex items-center gap-1.5">
-          <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[c.status ?? "draft"])} />
-          <span className="font-medium truncate">{c.topic}</span>
-        </div>
-        {!compact && (
-          <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-70">
-            <span className="font-mono">{CHANNEL_ICON[c.channel]}</span>
-            <span>{c.slideCount} slides</span>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Drop zone wrapper ──
-
-  function DropZone({ date, children, className }: { date: Date; children: React.ReactNode; className?: string }) {
-    const [over, setOver] = useState(false);
-    return (
-      <div
-        className={cn(className, over && "bg-primary/5 ring-2 ring-primary/20")}
-        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => { e.preventDefault(); setOver(false); handleDrop(e, date); }}
-      >
-        {children}
-      </div>
-    );
+  // Helper to make a unique key for each date cell
+  function dateKey(d: Date) {
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -233,7 +244,6 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        {/* Nav */}
         <div className="flex items-center gap-2">
           <button onClick={goPrev} className="rounded-md border border-border px-2 py-1.5 text-xs hover:bg-secondary transition-colors">&lt;</button>
           <button onClick={goToday} className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-secondary transition-colors">วันนี้</button>
@@ -245,7 +255,6 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
           </h2>
         </div>
 
-        {/* View toggle + filter */}
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             {FILTERS.map((f) => (
@@ -277,9 +286,9 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
             ยังไม่ได้ schedule ({unscheduled.length})  — ลากไปวางในปฏิทิน
           </p>
           <div className="flex flex-wrap gap-2">
-            {unscheduled.map((c) => (
-              <CampaignCard key={c.id} c={c} compact />
-            ))}
+            {unscheduled.map((c) =>
+              renderCard(c, true, draggingId, handleCardDragStart, handleCardDragEnd, handleCardClick)
+            )}
           </div>
         </div>
       )}
@@ -287,7 +296,6 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
       {/* ══ MONTH VIEW ══ */}
       {view === "month" && (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
-          {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-border">
             {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((d) => (
               <div key={d} className="text-center text-[10px] font-medium text-muted-foreground py-2 border-r border-border last:border-r-0">
@@ -295,19 +303,25 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
               </div>
             ))}
           </div>
-          {/* Calendar grid */}
           <div className="grid grid-cols-7">
             {getMonthCalendarDays(currentDate).map((day, i) => {
               const isCurrentMonth = day.getMonth() === currentDate.getMonth();
               const isToday = isSameDay(day, today);
               const dayCampaigns = getCampaignsForDay(day);
+              const dk = dateKey(day);
+              const isOver = dropOverDate === dk;
 
               return (
-                <DropZone key={i} date={day}
+                <div
+                  key={i}
                   className={cn(
                     "min-h-[100px] border-r border-b border-border last:border-r-0 p-1.5 transition-colors",
                     !isCurrentMonth && "bg-secondary/30",
+                    isOver && "bg-primary/5 ring-2 ring-primary/20",
                   )}
+                  onDragOver={(e) => handleDragOver(e, dk)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDropOnDate(e, day)}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className={cn(
@@ -319,7 +333,7 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
                     {isCurrentMonth && (
                       <Link
                         href={`/campaigns/new?type=platform&date=${day.toISOString().split("T")[0]}`}
-                        className="text-[10px] text-muted-foreground/0 hover:text-muted-foreground transition-colors group-hover:text-muted-foreground"
+                        className="text-[10px] text-muted-foreground/0 hover:text-muted-foreground transition-colors"
                         title="สร้าง campaign วันนี้"
                       >
                         +
@@ -327,14 +341,14 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
                     )}
                   </div>
                   <div className="space-y-1">
-                    {dayCampaigns.slice(0, 3).map((c) => (
-                      <CampaignCard key={c.id} c={c} compact />
-                    ))}
+                    {dayCampaigns.slice(0, 3).map((c) =>
+                      renderCard(c, true, draggingId, handleCardDragStart, handleCardDragEnd, handleCardClick)
+                    )}
                     {dayCampaigns.length > 3 && (
                       <p className="text-[9px] text-muted-foreground text-center">+{dayCampaigns.length - 3} more</p>
                     )}
                   </div>
-                </DropZone>
+                </div>
               );
             })}
           </div>
@@ -348,15 +362,21 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
             {getWeekDays(currentDate).map((day, i) => {
               const isToday = isSameDay(day, today);
               const dayCampaigns = getCampaignsForDay(day);
+              const dk = dateKey(day);
+              const isOver = dropOverDate === dk;
 
               return (
-                <DropZone key={i} date={day}
+                <div
+                  key={i}
                   className={cn(
                     "min-h-[300px] border-r border-border last:border-r-0 transition-colors",
                     isToday && "bg-primary/5",
+                    isOver && "bg-primary/5 ring-2 ring-primary/20",
                   )}
+                  onDragOver={(e) => handleDragOver(e, dk)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDropOnDate(e, day)}
                 >
-                  {/* Day header */}
                   <div className={cn(
                     "text-center py-3 border-b border-border",
                     isToday && "bg-foreground text-card",
@@ -365,16 +385,15 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
                     <p className={cn("text-lg font-semibold", isToday ? "text-card" : "text-foreground")}>{day.getDate()}</p>
                     <p className="text-[10px] opacity-60">{day.toLocaleDateString("th-TH", { month: "short" })}</p>
                   </div>
-                  {/* Campaigns */}
                   <div className="p-2 space-y-1.5">
-                    {dayCampaigns.map((c) => (
-                      <CampaignCard key={c.id} c={c} />
-                    ))}
+                    {dayCampaigns.map((c) =>
+                      renderCard(c, false, draggingId, handleCardDragStart, handleCardDragEnd, handleCardClick)
+                    )}
                     {dayCampaigns.length === 0 && (
                       <p className="text-[10px] text-muted-foreground/40 text-center pt-4">ว่าง</p>
                     )}
                   </div>
-                </DropZone>
+                </div>
               );
             })}
           </div>
@@ -390,7 +409,6 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
             </div>
           ) : (
             <>
-              {/* Scheduled */}
               {filtered.filter((c) => c.scheduledAt).sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime()).map((c) => (
                 <Link key={c.id} href={`/campaigns/${c.id}`}
                   className="flex items-center gap-4 rounded-lg border border-border bg-card px-4 py-3 hover:border-foreground/30 transition-colors"
@@ -420,7 +438,6 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
                 </Link>
               ))}
 
-              {/* Unscheduled in list */}
               {unscheduled.length > 0 && (
                 <>
                   <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground pt-3">ยังไม่ได้ schedule</p>
