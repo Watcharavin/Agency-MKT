@@ -114,66 +114,147 @@ export async function POST(req: NextRequest) {
   // Fetch product info if linked
   let productName = "";
   let productDesc = "";
+  let productPrice = 0;
+  let productCategory = "";
+  let productTags: string[] = [];
   if (campaign.productId) {
-    const pRows = await db.select({ name: products.name, description: products.description })
+    const pRows = await db
+      .select({ name: products.name, description: products.description, price: products.price, category: products.category, tags: products.tags })
       .from(products).where(eq(products.id, campaign.productId)).limit(1);
     if (pRows[0]) {
       productName = pRows[0].name;
       productDesc = pRows[0].description ?? "";
+      productPrice = pRows[0].price ?? 0;
+      productCategory = pRows[0].category ?? "";
+      productTags = (pRows[0].tags as string[]) ?? [];
     }
   }
 
   const socialLinks = brand.socialLinks as SocialLinks | null;
 
-  // Build AI prompt
+  // ── Build brand context ──
+  const brandTones = (brand.toneTags as string[] | null) ?? [];
+  const combinedTone = [campaign.tone ?? "Educational", ...brandTones].filter(Boolean);
+  const uniqueTones = [...new Set(combinedTone)].join(", ");
+
   const brandContext = [
     `Brand: ${brand.name}`,
     brand.tagline ? `Tagline: "${brand.tagline}"` : "",
     brand.about ? `About: ${brand.about}` : "",
     brand.audience ? `Target audience: ${brand.audience}` : "",
+    brand.primaryColor
+      ? `Brand color mood: primary ${brand.primaryColor}${brand.secondaryColor ? `, secondary ${brand.secondaryColor}` : ""}${brand.thirdColor ? `, accent ${brand.thirdColor}` : ""} — let the color palette influence the emotional tone (e.g. deep purple = premium, bright orange = energetic)`
+      : "",
   ].filter(Boolean).join("\n");
 
+  const voiceRules = [
+    brand.doSay ? `MUST USE these words/phrases: ${brand.doSay}` : "",
+    brand.dontSay ? `NEVER USE these words/phrases: ${brand.dontSay}` : "",
+  ].filter(Boolean).join("\n");
+
+  // ── Build product context ──
+  const productContext = productName
+    ? [
+        `Product: ${productName}`,
+        productDesc ? `Description: ${productDesc}` : "",
+        productPrice ? `Price: ฿${(productPrice / 100).toLocaleString()}` : "",
+        productCategory ? `Category: ${productCategory}` : "",
+        productTags.length > 0 ? `Tags: ${productTags.join(", ")}` : "",
+      ].filter(Boolean).join("\n")
+    : "";
+
+  // ── Caption length guide ──
   const captionLenGuide: Record<string, string> = {
-    Short: "สั้นกระชับ 3-5 บรรทัด",
-    Medium: "ปานกลาง 6-12 บรรทัด",
-    Long: "ยาวละเอียด 12-20 บรรทัด พร้อม bullet points",
+    Short: "สั้นกระชับ 3-5 บรรทัด ไม่เกิน 50 คำ",
+    Medium: "ปานกลาง 6-12 บรรทัด 50-150 คำ",
+    Long: "ยาวละเอียด 12-20 บรรทัด 150+ คำ พร้อม bullet points",
   };
   const lenGuide = captionLenGuide[campaign.captionLength ?? "Medium"] ?? captionLenGuide.Medium;
 
-  const prompt = `You are an expert Thai social media copywriter. Write a ${campaign.channel} post caption.
+  // ── Platform-specific style ──
+  const platformStyle: Record<string, string> = {
+    Instagram: "Visual-first, aesthetic caption. Use line breaks for clean look. Emoji ไม่เยอะมาก. เน้น storytelling สั้นๆ + visual appeal. Caption ต้องอ่านง่าย scroll-stopping.",
+    Facebook: "Storytelling ยาวขึ้นได้. เน้น share-worthy content. ใช้ emotional hook ให้แชร์ต่อ. เขียนแบบ conversational เหมือนคุยกับเพื่อน.",
+    TikTok: "Caption สั้นมาก กระชับ. Hook แรงใน 2 วินาที. ใช้ภาษา Gen Z / slang ได้ถ้า tone เหมาะ. เน้น curiosity gap.",
+    LINE: "Direct, ชัดเจน, promotional. เน้น benefit ตรงๆ. มี link/CTA ชัดเจน. เหมือนส่งข้อความหาลูกค้าโดยตรง.",
+  };
 
+  // ── Pillar-specific structure ──
+  const pillarStructure: Record<string, string> = {
+    Knowledge: `1. HOOK — คำถามหรือ fact ที่น่าสนใจ ทำให้อยากอ่านต่อ
+2. TIPS/CONTENT — 3-5 tips หรือข้อมูลที่มีประโยชน์ แต่ละข้อมี emoji + หัวข้อ bold
+3. BRAND TIE-IN — เชื่อมโยงกลับมาที่แบรนด์/สินค้าอย่างเป็นธรรมชาติ (ไม่ hard sell)
+4. CTA — ชวน save, share, หรือ comment แชร์ประสบการณ์`,
+
+    Product: `1. HOOK LINE — หัวข้อที่ดึงดูดความสนใจ (can include emoji)
+2. OPENING — Emoji + intro ที่ทำให้อยากอ่านต่อ
+3. PROBLEM/PAIN POINT — สถานการณ์ที่กลุ่มเป้าหมายเจอ
+4. PRODUCT INTRO — แนะนำสินค้าพร้อม emoji, ชื่อแบรนด์, ชื่อสินค้า${productPrice ? `, ราคา ฿${(productPrice / 100).toLocaleString()}` : ""}
+5. FEATURE BULLETS — 3-5 จุดเด่น แต่ละข้อมี emoji + ชื่อ feature — คำอธิบาย
+6. VARIANTS/OPTIONS — ถ้ามีตัวเลือก ให้ list (ข้ามถ้าไม่มี)
+7. CLOSING — ประโยคปิดที่สร้างอารมณ์/แรงบันดาลใจ
+8. CTA — บอกชัดเจนว่าให้ทำอะไรต่อ`,
+
+    Brand: `1. STORY HOOK — เปิดด้วยเรื่องราว/ที่มาที่น่าสนใจของแบรนด์
+2. VALUES — สิ่งที่แบรนด์เชื่อ/ยึดมั่น เขียนให้ inspire
+3. BEHIND THE SCENES — เบื้องหลัง/ความตั้งใจ ทำให้รู้สึกเชื่อมโยงกับแบรนด์
+4. EMOTIONAL CLOSE — ปิดด้วยอารมณ์ที่ทำให้จดจำ
+5. CTA — ชวน follow, share story, หรือ tag คนที่ควรรู้จักแบรนด์`,
+
+    Promotion: `1. URGENCY HOOK — เปิดด้วยความเร่งด่วน/โอกาสพิเศษ (🔥, ⚡, 🎉)
+2. OFFER DETAILS — รายละเอียดโปรโมชั่นชัดเจน (ลด%, ราคา, ของแถม)${productPrice ? ` ราคาปกติ ฿${(productPrice / 100).toLocaleString()}` : ""}
+3. BENEFIT BULLETS — 2-3 เหตุผลว่าทำไมต้องซื้อตอนนี้
+4. SCARCITY — จำกัดเวลา/จำนวน ทำให้รู้สึกว่าพลาดไม่ได้
+5. CTA — บอกชัดว่าสั่งซื้อยังไง ง่ายที่สุด`,
+
+    Others: `1. HOOK — เปิดให้น่าสนใจตามหัวข้อ
+2. BODY — เนื้อหาหลัก ปรับตามหัวข้อ
+3. BRAND CONNECTION — เชื่อมกลับมาที่แบรนด์
+4. CTA — ชวนให้มี engagement`,
+  };
+
+  const pillar = campaign.pillar ?? "Product";
+  const structure = pillarStructure[pillar] ?? pillarStructure.Product;
+
+  const prompt = `You are an expert Thai social media copywriter specializing in ${campaign.channel} content.
+
+═══ BRAND DNA ═══
 ${brandContext}
+Brand voice tones: ${uniqueTones}
+${voiceRules ? `\n═══ BRAND VOICE RULES (CRITICAL — follow strictly) ═══\n${voiceRules}` : ""}
+
+═══ CAMPAIGN BRIEF ═══
 Platform: ${campaign.channel}
 Topic: ${campaign.topic}
-${campaign.pillar ? `Content Pillar: ${campaign.pillar}` : ""}
+${campaign.brief ? `Brief: ${campaign.brief}` : ""}
+Content Pillar: ${pillar}
 ${campaign.goal ? `Goal: ${campaign.goal}` : ""}
-Tone: ${campaign.tone ?? "Educational"}
-${campaign.audience ? `Audience: ${campaign.audience}` : ""}
-${productName ? `Product: ${productName}${productDesc ? ` — ${productDesc}` : ""}` : ""}
+${campaign.audience ? `Target Audience: ${campaign.audience}` : ""}
+${productContext ? `\n═══ PRODUCT INFO ═══\n${productContext}` : ""}
 ${campaign.cta ? `CTA: ${campaign.cta}` : ""}
-Language: ${campaign.language === "EN" ? "English" : "Thai"}
+Language: ${campaign.language === "EN" ? "English" : campaign.language === "TH+EN" ? "Thai mixed with English terms" : "Thai"}
 
-Write the caption following this EXACT structure:
+═══ PLATFORM STYLE (${campaign.channel}) ═══
+${platformStyle[campaign.channel] ?? platformStyle.Instagram}
 
-1. HOOK LINE — One catchy headline that grabs attention (can include emoji)
-2. OPENING — Emoji + engaging intro sentence that draws reader in
-3. PROBLEM/PAIN POINT — Relatable situation the audience faces
-4. PRODUCT/SOLUTION INTRO — Introduce with emoji, brand name, product name
-5. FEATURE BULLETS — 3-5 features, each with emoji + bold feature name + description
-6. VARIANTS/OPTIONS — If product has variants, list them with bullet points (skip if not applicable)
-7. CLOSING HOOK — Emotional/aspirational sentence
-8. CTA — Clear call-to-action telling user what to do next (comment, message, order)${campaign.cta ? ` Use this CTA: "${campaign.cta}"` : ""}
+═══ POST STRUCTURE (follow this for "${pillar}" pillar) ═══
+${structure}
+${campaign.cta && campaign.cta !== "ไม่ระบุ" ? `Use this CTA: "${campaign.cta}"` : ""}
 
-Guidelines:
+═══ GUIDELINES ═══
 - Length: ${lenGuide}
-- Use emojis naturally (not excessive)
+- Tone: ${uniqueTones} — ให้ทุกประโยคสะท้อน tone นี้อย่างสม่ำเสมอ
+- Use emojis naturally (ไม่มากเกิน 1-2 ตัวต่อบรรทัด)
 - Use line breaks for readability
 - Feature bullets format: emoji + feature name — description
-- Write in ${campaign.language === "EN" ? "English" : "Thai"}
+- Write in ${campaign.language === "EN" ? "English" : campaign.language === "TH+EN" ? "Thai (ใช้ศัพท์ภาษาอังกฤษได้ตามธรรมชาติ)" : "Thai"}
+${productPrice ? `- กล่าวถึงราคาสินค้า ฿${(productPrice / 100).toLocaleString()} ในโพสต์ถ้าเหมาะสมกับ pillar` : ""}
+${productTags.length > 0 ? `- ใช้ keywords เหล่านี้ใน caption ถ้าเหมาะสม: ${productTags.join(", ")}` : ""}
 - DO NOT include any footer, social links, hashtags, or brand signature — those are added separately
 - DO NOT include divider lines (──) — those are added separately
 
-Then generate 8-12 relevant hashtags in ${campaign.language === "EN" ? "English" : "Thai"} + English mix.
+═══ OUTPUT FORMAT ═══
+Generate the caption and 8-12 relevant hashtags${productCategory ? ` (include hashtags related to "${productCategory}")` : ""}.
 
 Return in this EXACT format:
 CAPTION:
