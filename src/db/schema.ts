@@ -22,6 +22,7 @@ export const brands = pgTable("brands", {
   audience:      text("audience"),
   channels:      jsonb("channels").$type<string[]>().default([]),
   languages:     jsonb("languages").$type<string[]>().default([]),
+  defaultPostTime: text("default_post_time").default("09:00"),
   doSay:         text("do_say"),
   dontSay:       text("dont_say"),
   displayFont:   text("display_font").default("Inter"),
@@ -73,7 +74,8 @@ export const campaigns = pgTable("campaigns", {
   captionLength: text("caption_length").default("Medium"),
   footerStyle:   text("footer_style").default("Full"),
   status:        campaignStatusEnum("status").default("draft"),
-  scheduledAt:   timestamp("scheduled_at"),          // for Content Calendar
+  scheduledAt:      timestamp("scheduled_at"),
+  targetAccountIds: jsonb("target_account_ids").$type<string[]>().default([]),
   createdAt:     timestamp("created_at").defaultNow(),
   updatedAt:     timestamp("updated_at").defaultNow(),
 });

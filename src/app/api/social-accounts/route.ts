@@ -37,14 +37,6 @@ export async function POST(req: NextRequest) {
   const brandRows = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1);
   if (brandRows.length === 0) return NextResponse.json({ error: "Brand not found" }, { status: 404 });
 
-  // Deactivate existing account for same platform
-  await db.update(socialAccounts)
-    .set({ isActive: 0, updatedAt: new Date() })
-    .where(and(
-      eq(socialAccounts.brandId, brandRows[0].id),
-      eq(socialAccounts.platform, platform),
-    ));
-
   const [account] = await db.insert(socialAccounts).values({
     brandId: brandRows[0].id,
     platform,

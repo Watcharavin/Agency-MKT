@@ -108,7 +108,29 @@ function renderCard(
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Campaign[] }) {
+type SocialAccountSlim = {
+  id: string;
+  platform: string;
+  platformAccountName: string | null;
+  isActive: number | null;
+};
+
+const CHANNEL_TO_PLATFORM: Record<string, string> = {
+  Facebook: "facebook",
+  Instagram: "instagram",
+  LINE: "line",
+  TikTok: "tiktok",
+};
+
+export function ContentCalendar({
+  campaigns: initialCampaigns,
+  socialAccounts = [],
+  defaultPostTime = "09:00",
+}: {
+  campaigns: Campaign[];
+  socialAccounts?: SocialAccountSlim[];
+  defaultPostTime?: string;
+}) {
   const router = useRouter();
   const [items, setItems] = useState<Campaign[]>(initialCampaigns);
   const [view, setView] = useState<ViewMode>("month");
@@ -120,6 +142,7 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
   const [dropOverUnscheduled, setDropOverUnscheduled] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [popupDate, setPopupDate] = useState("");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState<{ platform: string; status: string; error?: string } | null>(null);
@@ -173,11 +196,19 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
   const handleCardClick = useCallback((id: string) => {
     if (didDragRef.current) { didDragRef.current = false; return; }
     const c = items.find((x) => x.id === id);
-    if (c) { setSelectedCampaign(c); setPopupDate(c.scheduledAt ? toDateInputValue(new Date(c.scheduledAt)) : ""); }
+    if (c) {
+      setSelectedCampaign(c);
+      setPopupDate(c.scheduledAt ? toDateInputValue(new Date(c.scheduledAt)) : "");
+      setSelectedAccountIds((c.targetAccountIds as string[]) ?? []);
+      setPostResult(null);
+    }
   }, [items]);
 
   const openPopup = useCallback((c: Campaign) => {
-    setSelectedCampaign(c); setPopupDate(c.scheduledAt ? toDateInputValue(new Date(c.scheduledAt)) : "");
+    setSelectedCampaign(c);
+    setPopupDate(c.scheduledAt ? toDateInputValue(new Date(c.scheduledAt)) : "");
+    setSelectedAccountIds((c.targetAccountIds as string[]) ?? []);
+    setPostResult(null);
   }, []);
 
   const patchCampaign = useCallback(async (cId: string, data: Record<string, unknown>) => {
@@ -214,13 +245,13 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
   async function handlePopupSaveDate() {
     if (!selectedCampaign) return; setSaving(true);
     if (popupDate) {
-      const newDate = new Date(popupDate + "T12:00:00");
-      setItems((prev) => prev.map((c) => c.id === selectedCampaign.id ? { ...c, scheduledAt: newDate, status: "scheduled" as const } : c));
-      await patchCampaign(selectedCampaign.id, { scheduledAt: newDate.toISOString(), status: "scheduled" });
+      const newDate = new Date(`${popupDate}T${defaultPostTime}:00`);
+      setItems((prev) => prev.map((c) => c.id === selectedCampaign.id ? { ...c, scheduledAt: newDate, status: "scheduled" as const, targetAccountIds: selectedAccountIds } : c));
+      await patchCampaign(selectedCampaign.id, { scheduledAt: newDate.toISOString(), status: "scheduled", targetAccountIds: selectedAccountIds });
       setSelectedCampaign((prev) => prev ? { ...prev, scheduledAt: newDate, status: "scheduled" as const } : null);
     } else {
       setItems((prev) => prev.map((c) => c.id === selectedCampaign.id ? { ...c, scheduledAt: null, status: "draft" as const } : c));
-      await patchCampaign(selectedCampaign.id, { scheduledAt: null, status: "draft" });
+      await patchCampaign(selectedCampaign.id, { scheduledAt: null, status: "draft", targetAccountIds: selectedAccountIds });
       setSelectedCampaign((prev) => prev ? { ...prev, scheduledAt: null, status: "draft" as const } : null);
     }
     setSaving(false);
@@ -631,6 +662,47 @@ export function ContentCalendar({ campaigns: initialCampaigns }: { campaigns: Ca
                 {selectedCampaign.goal && <div className="rounded-md bg-secondary/50 px-3 py-2"><p className="text-[10px] text-muted-foreground font-mono uppercase">Goal</p><p className="text-xs font-medium text-foreground mt-0.5">{selectedCampaign.goal}</p></div>}
                 {selectedCampaign.audience && <div className="rounded-md bg-secondary/50 px-3 py-2"><p className="text-[10px] text-muted-foreground font-mono uppercase">Audience</p><p className="text-xs font-medium text-foreground mt-0.5">{selectedCampaign.audience}</p></div>}
               </div>
+              {/* Account selector */}
+              {(() => {
+                const platform = CHANNEL_TO_PLATFORM[selectedCampaign.channel];
+                const platformAccounts = socialAccounts.filter(a => a.platform === platform);
+                if (platformAccounts.length === 0) return null;
+                return (
+                  <div className="rounded-md border border-border p-3 space-y-2">
+                    <label className="text-[10px] font-mono uppercase text-muted-foreground">โพสต์ไปที่</label>
+                    <div className="space-y-1.5">
+                      {platformAccounts.map(acc => {
+                        const checked = selectedAccountIds.includes(acc.id);
+                        return (
+                          <button
+                            key={acc.id}
+                            onClick={() => setSelectedAccountIds(prev =>
+                              prev.includes(acc.id) ? prev.filter(id => id !== acc.id) : [...prev, acc.id]
+                            )}
+                            className={cn(
+                              "w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors border",
+                              checked
+                                ? "bg-foreground text-card border-foreground"
+                                : "bg-secondary/30 text-foreground border-border hover:bg-secondary"
+                            )}
+                          >
+                            <span className={cn("h-3.5 w-3.5 rounded-sm border-2 flex items-center justify-center shrink-0",
+                              checked ? "border-card bg-card" : "border-muted-foreground"
+                            )}>
+                              {checked && <span className="block h-1.5 w-1.5 rounded-sm bg-foreground" />}
+                            </span>
+                            <span className="font-medium">{acc.platformAccountName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedAccountIds.length === 0 && (
+                      <p className="text-[10px] text-yellow-500">ไม่ได้เลือก = โพสต์ไปทุก connected accounts</p>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="rounded-md border border-border p-3 space-y-2">
                 <label className="text-[10px] font-mono uppercase text-muted-foreground">Schedule วันที่</label>
                 <div className="flex items-center gap-2">

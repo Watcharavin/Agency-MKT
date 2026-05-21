@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { brands, campaigns } from "@/db/schema";
+import { brands, campaigns, socialAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ContentCalendar } from "@/components/shared/ContentCalendar";
 
@@ -10,12 +10,24 @@ export default async function ContentPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const brandRows = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1);
+  const brandRows = await db
+    .select({ id: brands.id, defaultPostTime: brands.defaultPostTime })
+    .from(brands)
+    .where(eq(brands.userId, userId))
+    .limit(1);
   const brand = brandRows[0] ?? null;
 
-  const list = brand
-    ? await db.select().from(campaigns).where(eq(campaigns.brandId, brand.id))
-    : [];
+  const [list, accounts] = brand
+    ? await Promise.all([
+        db.select().from(campaigns).where(eq(campaigns.brandId, brand.id)),
+        db.select({
+          id: socialAccounts.id,
+          platform: socialAccounts.platform,
+          platformAccountName: socialAccounts.platformAccountName,
+          isActive: socialAccounts.isActive,
+        }).from(socialAccounts).where(eq(socialAccounts.brandId, brand.id)),
+      ])
+    : [[], []];
 
   return (
     <div className="space-y-6">
@@ -35,7 +47,11 @@ export default async function ContentPage() {
         </Link>
       </div>
 
-      <ContentCalendar campaigns={list} />
+      <ContentCalendar
+        campaigns={list}
+        socialAccounts={accounts.filter(a => Number(a.isActive) === 1)}
+        defaultPostTime={brand?.defaultPostTime ?? "09:00"}
+      />
     </div>
   );
 }

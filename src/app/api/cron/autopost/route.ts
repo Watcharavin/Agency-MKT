@@ -38,12 +38,17 @@ export async function GET(req: NextRequest) {
     const targetPlatform = platformMap[campaign.channel];
     if (!targetPlatform) continue;
 
-    const accounts = await db.select().from(socialAccounts)
+    const targetIds = campaign.targetAccountIds ?? [];
+    const allAccounts = await db.select().from(socialAccounts)
       .where(and(
         eq(socialAccounts.brandId, campaign.brandId),
         eq(socialAccounts.platform, targetPlatform as "line" | "facebook" | "instagram" | "x" | "tiktok"),
         eq(socialAccounts.isActive, 1),
       ));
+    // Use selected accounts if specified, otherwise fall back to all active accounts
+    const accounts = targetIds.length > 0
+      ? allAccounts.filter(a => targetIds.includes(a.id))
+      : allAccounts;
 
     if (accounts.length === 0) continue;
 

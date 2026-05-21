@@ -57,7 +57,7 @@ export async function PATCH(
     "topic", "brief", "audience", "tone", "language",
     "slideCount", "imageRatio", "pillar", "goal", "cta",
     "captionLength", "footerStyle", "channel", "productId", "status",
-    "scheduledAt",
+    "scheduledAt", "targetAccountIds",
   ] as const;
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
