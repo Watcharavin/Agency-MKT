@@ -6,13 +6,15 @@ import { eq, and } from "drizzle-orm";
 import { postToLINE, postToFacebook, postToInstagram } from "@/lib/autopost";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+  const targetAccountIds: string[] = body.accountIds ?? [];
 
   const brandRows = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1);
   if (brandRows.length === 0) return NextResponse.json({ error: "Brand not found" }, { status: 404 });
@@ -35,13 +37,16 @@ export async function POST(
     return NextResponse.json({ error: "Unsupported channel" }, { status: 400 });
   }
 
-  // Find active social account for this platform
-  const accounts = await db.select().from(socialAccounts)
+  // Find active social accounts, filtered by selected accountIds if provided
+  const allAccounts = await db.select().from(socialAccounts)
     .where(and(
       eq(socialAccounts.brandId, campaign.brandId),
       eq(socialAccounts.platform, targetPlatform as "line" | "facebook" | "instagram" | "x" | "tiktok"),
       eq(socialAccounts.isActive, 1),
     ));
+  const accounts = targetAccountIds.length > 0
+    ? allAccounts.filter(a => targetAccountIds.includes(a.id))
+    : allAccounts;
 
   if (accounts.length === 0) {
     return NextResponse.json({

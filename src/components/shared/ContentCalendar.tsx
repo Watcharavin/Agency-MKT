@@ -259,10 +259,13 @@ export function ContentCalendar({
 
   async function handlePostNow() {
     if (!selectedCampaign) return;
-    if (!confirm("โพสต์ไปยัง " + selectedCampaign.channel + " ตอนนี้เลย?")) return;
     setPosting(true); setPostResult(null);
     try {
-      const res = await fetch(`/api/campaigns/${selectedCampaign.id}/post`, { method: "POST" });
+      const res = await fetch(`/api/campaigns/${selectedCampaign.id}/post`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountIds: selectedAccountIds }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setPostResult({ platform: selectedCampaign.channel, status: "failed", error: data.error });
@@ -722,10 +725,10 @@ export function ContentCalendar({
                 })()}
               </div>
               {/* Post Now */}
-              {(selectedCampaign.status === "generated" || selectedCampaign.status === "scheduled") && (
+              {selectedCampaign.status !== "published" && (
                 <button onClick={handlePostNow} disabled={posting}
                   className="w-full rounded-md bg-green-600 text-white py-2 text-xs font-medium hover:bg-green-700 transition-colors disabled:opacity-50">
-                  {posting ? "กำลังโพสต์..." : `Post to ${selectedCampaign.channel} ตอนนี้`}
+                  {posting ? "กำลังโพสต์..." : `Post Now${selectedAccountIds.length > 0 ? ` (${selectedAccountIds.length} accounts)` : ""}`}
                 </button>
               )}
               {selectedCampaign.status === "published" && (
